@@ -1,0 +1,81 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+*.elf
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CMakePresets.json.user
+CMakeUserPresets.json
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+
+# Build directories
+/build/
+/build*/
+/builds/
+/out/
+/bin/
+/build-release/
+/_CPack_Packages/
+/dist/
+/src/keyinjectord/build/
+/QtScribe
+
+# Qt Creator
+*.user
+*.user.*
+
+# Visual Studio Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.code-workspace
+
+# Operating System Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# AI
+AGENTS.md
+.agents/
+skills-lock.json

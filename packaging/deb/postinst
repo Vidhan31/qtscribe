@@ -1,0 +1,37 @@
+#!/bin/sh
+set -e
+
+case "$1" in
+    configure)
+        if command -v setcap >/dev/null 2>&1; then
+            if [ -f "/opt/qtscribe/bin/keyinjectord" ]; then
+                setcap cap_dac_override+ep /opt/qtscribe/bin/keyinjectord || true
+            fi
+        fi
+
+        if [ -d "/usr/bin" ]; then
+            if [ -f "/opt/qtscribe/bin/qtscribe" ]; then
+                ln -sf /opt/qtscribe/bin/qtscribe /usr/bin/qtscribe
+            fi
+            if [ -f "/opt/qtscribe/bin/keyinjectord" ]; then
+                ln -sf /opt/qtscribe/bin/keyinjectord /usr/bin/keyinjectord
+            fi
+        fi
+
+        if command -v update-desktop-database >/dev/null 2>&1; then
+            update-desktop-database -q /usr/share/applications || true
+        fi
+
+        if command -v gtk-update-icon-cache >/dev/null 2>&1; then
+            gtk-update-icon-cache -q -t -f /usr/share/icons/hicolor || true
+        fi
+        ;;
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

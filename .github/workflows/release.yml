@@ -1,0 +1,239 @@
+name: Release Deployment
+run-name: QtScribe ${{ inputs.tag_name || github.ref_name }}
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Release tag name (e.g. v1.1.1)'
+        required: false
+        type: string
+      draft:
+        description: 'Publish as a Draft release (for maintainer review)'
+        required: false
+        type: boolean
+        default: false
+      prerelease:
+        description: 'Mark as a Pre-release (beta/rc)'
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  resolve-version:
+    name: Resolve Release Version
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.tag-info.outputs.tag }}
+      version: ${{ steps.tag-info.outputs.version }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Resolve release tag & version
+        id: tag-info
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag_name }}
+        run: |
+          if [ -n "${INPUT_TAG}" ]; then
+            TAG_NAME="${INPUT_TAG}"
+          elif [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            TAG_NAME="${GITHUB_REF#refs/tags/}"
+          else
+            TAG_NAME="v$(cat VERSION | tr -d '[:space:]')"
+          fi
+          VERSION="${TAG_NAME#v}"
+          VERSION="${VERSION#V}"
+          echo "Resolved Tag: ${TAG_NAME}"
+          echo "Resolved Version: ${VERSION}"
+          echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+  build-packages:
+    name: Build ${{ matrix.name }}
+    needs: [resolve-version]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: deb
+            name: Debian (.deb)
+            file: packaging/deb/Dockerfile.deb
+            outdir: dist/deb
+            artifact: package-deb
+          - target: arch
+            name: Arch Linux (.pkg.tar.zst)
+            file: packaging/arch/Dockerfile.arch
+            outdir: dist/arch
+            artifact: package-arch
+          - target: rpm
+            name: Fedora RPM (.rpm)
+            file: packaging/rpm/Dockerfile.rpm
+            outdir: dist/rpm
+            artifact: package-rpm
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Build & Export ${{ matrix.name }}
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          target: export
+          outputs: type=local,dest=${{ matrix.outdir }}
+          build-args: |
+            APP_VERSION=${{ needs.resolve-version.outputs.version }}
+          cache-from: type=gha,scope=release-${{ matrix.target }}
+          cache-to: type=gha,mode=max,scope=release-${{ matrix.target }}
+
+      - name: Verify package artifacts
+        run: |
+          echo "Listing generated package artifacts in ${{ matrix.outdir }}:"
+          ls -lh ${{ matrix.outdir }}
+          if [ -z "$(ls -A ${{ matrix.outdir }})" ]; then
+            echo "ERROR: No package artifacts found in ${{ matrix.outdir }}"
+            exit 1
+          fi
+
+      - name: Upload ${{ matrix.name }} package artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.outdir }}/*
+          retention-days: 7
+          if-no-files-found: error
+
+  publish-release:
+    name: Publish Release & Attestations
+    needs: [resolve-version, build-packages]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Download package artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: 'package-*'
+          path: dist/release-assets
+          merge-multiple: true
+
+      - name: Generate SBOM (CycloneDX via pinned cdxgen)
+        run: |
+          npx --yes @cyclonedx/cdxgen@12.8.4 -r -o dist/release-assets/bom.json --spec-version 1.6 .
+          test -f dist/release-assets/bom.json
+          ls -lh dist/release-assets/bom.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: sbom-cyclonedx
+          path: dist/release-assets/bom.json
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Assemble release assets and compute checksums
+        id: assemble
+        env:
+          RELEASE_VERSION: ${{ needs.resolve-version.outputs.version }}
+        run: |
+          echo "============================================================"
+          echo "Assembled Release Assets for version ${RELEASE_VERSION}:"
+          echo "============================================================"
+          ls -lh dist/release-assets/
+
+          cd dist/release-assets
+          sha256sum * > SHA256SUMS.txt
+
+          echo "============================================================"
+          echo "SHA256 Checksums (SHA256SUMS.txt):"
+          echo "============================================================"
+          cat SHA256SUMS.txt
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: |
+            dist/release-assets/*.deb
+            dist/release-assets/*.rpm
+            dist/release-assets/*.pkg.tar.zst
+            dist/release-assets/bom.json
+            dist/release-assets/SHA256SUMS.txt
+
+      - name: Attest SBOM
+        uses: actions/attest-sbom@115c3be05ff3974bcbd596578934b3f9ce39bf68 # v2.2.0
+        with:
+          subject-path: |
+            dist/release-assets/*.deb
+            dist/release-assets/*.rpm
+            dist/release-assets/*.pkg.tar.zst
+            dist/release-assets/SHA256SUMS.txt
+          sbom-path: 'dist/release-assets/bom.json'
+
+      - name: Install cosign (keyless OIDC signing)
+        uses: sigstore/cosign-installer@7e8b541eb2e61bf99390e1afd4be13a184e9ebc5 # v3.10.1
+        with:
+          cosign-version: 'v3.1.3'
+
+      - name: Sign artifacts with cosign (keyless bundles)
+        run: |
+          shopt -s nullglob
+          for f in dist/release-assets/*.deb dist/release-assets/*.rpm dist/release-assets/*.pkg.tar.zst dist/release-assets/SHA256SUMS.txt; do
+            cosign sign-blob --yes --bundle "$f.sigstore.json" "$f"
+          done
+          ls -lh dist/release-assets/
+
+      - name: Extract release notes from CHANGELOG
+        id: changelog_reader
+        uses: mindsers/changelog-reader-action@1faaf50aa09d5793d9a100819973df801febfb31 # v2.4.0
+        continue-on-error: true
+        with:
+          version: ${{ needs.resolve-version.outputs.version }}
+          path: ./CHANGELOG.md
+          validation_level: warn
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          tag_name: ${{ needs.resolve-version.outputs.tag }}
+          name: QtScribe ${{ needs.resolve-version.outputs.tag }}
+          body: ${{ steps.changelog_reader.outputs.changes }}
+          generate_release_notes: ${{ steps.changelog_reader.outputs.changes == '' }}
+          draft: ${{ github.event.inputs.draft || false }}
+          prerelease: ${{ steps.changelog_reader.outputs.status == 'prereleased' || github.event.inputs.prerelease || false }}
+          files: |
+            dist/release-assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

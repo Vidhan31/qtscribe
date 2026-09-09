@@ -1,0 +1,130 @@
+name: Check Packaging Dependency Updates
+
+on:
+  schedule:
+    - cron: '0 0 1 * *'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check-digest-pins:
+    name: Check Container Image Digest Pins
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install crane
+        run: |
+          CRANE_VERSION=0.20.3
+          curl -fsSL "https://github.com/google/go-containerregistry/releases/download/v${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" \
+            | tar -xz crane
+          sudo mv crane /usr/local/bin/crane
+
+      - name: Check ubuntu:24.04 digest
+        run: |
+          PINNED="sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517"
+          CURRENT=$(crane digest ubuntu:24.04)
+          echo "Pinned : ${PINNED}"
+          echo "Current: ${CURRENT}"
+          if [ "${PINNED}" != "${CURRENT}" ]; then
+            echo "::warning::ubuntu:24.04 digest has changed. Update Dockerfile.deb ARG line and this workflow."
+            echo "New digest: ${CURRENT}"
+          else
+            echo "ubuntu:24.04 digest is current."
+          fi
+
+      - name: Check fedora:44 digest
+        run: |
+          PINNED="sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80"
+          CURRENT=$(crane digest fedora:44)
+          echo "Pinned : ${PINNED}"
+          echo "Current: ${CURRENT}"
+          if [ "${PINNED}" != "${CURRENT}" ]; then
+            echo "::warning::fedora:44 digest has changed. Update Dockerfile.rpm ARG line and this workflow."
+            echo "New digest: ${CURRENT}"
+          else
+            echo "fedora:44 digest is current."
+          fi
+
+      - name: Check archlinux:base-devel digest
+        run: |
+          PINNED="sha256:61f7de2dd88cc4ba1fe36c24cfe1a503c3936984492d6405eeab013ce6ac68c5"
+          CURRENT=$(crane digest archlinux:base-devel)
+          echo "Pinned : ${PINNED}"
+          echo "Current: ${CURRENT}"
+          if [ "${PINNED}" != "${CURRENT}" ]; then
+            echo "::warning::archlinux:base-devel digest has changed. Update Dockerfile.arch ARG line and this workflow."
+            echo "New digest: ${CURRENT}"
+          else
+            echo "archlinux:base-devel digest is current."
+          fi
+
+  check-tool-versions:
+    name: Check Tool Version Pins
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check aqtinstall latest version
+        run: |
+          PINNED="3.3.0"
+          LATEST=$(curl -fsSL https://pypi.org/pypi/aqtinstall/json | python3 -c "import sys,json; print(json.load(sys.stdin)['info']['version'])")
+          echo "Pinned : ${PINNED}"
+          echo "Latest : ${LATEST}"
+          if [ "${PINNED}" != "${LATEST}" ]; then
+            echo "::warning::aqtinstall has a new release (${LATEST}). Update AQTINSTALL_VERSION+SHA256 in Dockerfile.deb and aqtversion in ci.yml/codeql.yml."
+          else
+            echo "aqtinstall is current."
+          fi
+
+      - name: Check CMake latest release
+        run: |
+          PINNED="4.4.3"
+          LATEST=$(curl -fsSL https://api.github.com/repos/Kitware/CMake/releases/latest | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'].lstrip('v'))")
+          echo "Pinned : ${PINNED}"
+          echo "Latest : ${LATEST}"
+          if [ "${PINNED}" != "${LATEST}" ]; then
+            echo "::warning::CMake has a new release (${LATEST}). Update CMAKE_VERSION+SHA256 in Dockerfile.deb."
+          else
+            echo "CMake is current."
+          fi
+
+      - name: Check whisper.cpp latest tag
+        run: |
+          PINNED="v1.9.3"
+          LATEST=$(curl -fsSL https://api.github.com/repos/ggml-org/whisper.cpp/releases/latest | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'])")
+          echo "Pinned : ${PINNED}"
+          echo "Latest : ${LATEST}"
+          if [ "${PINNED}" != "${LATEST}" ]; then
+            echo "::warning::whisper.cpp has a new release (${LATEST}). Evaluate and update GIT_TAG in CMakeLists.txt and git checkout in Dockerfiles."
+          else
+            echo "whisper.cpp is current."
+          fi
+
+      - name: Check qtkeychain latest tag
+        run: |
+          PINNED="0.17.0"
+          LATEST=$(curl -fsSL https://api.github.com/repos/frankosterfeld/qtkeychain/releases/latest | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'])")
+          echo "Pinned : ${PINNED}"
+          echo "Latest : ${LATEST}"
+          if [ "${PINNED}" != "${LATEST}" ]; then
+            echo "::warning::qtkeychain has a new release (${LATEST}). Evaluate and update git checkout in Dockerfile.deb."
+          else
+            echo "qtkeychain is current."
+          fi

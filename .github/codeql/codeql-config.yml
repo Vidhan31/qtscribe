@@ -1,0 +1,4 @@
+paths-ignore:
+  - 'build/_deps/**'
+  - '**/build/_deps/**'
+  - 'src/keyinjectord/build/**'

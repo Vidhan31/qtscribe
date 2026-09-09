@@ -1,0 +1,380 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  validate-version:
+    name: Validate VERSION File (Semantic Versioning)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check VERSION file format
+        run: |
+          test -f VERSION || (echo "ERROR: VERSION file is missing" && exit 1)
+          APP_VER=$(tr -d '[:space:]' < VERSION)
+          echo "Canonical version in VERSION: ${APP_VER}"
+          if ! [[ "${APP_VER}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "ERROR: VERSION '${APP_VER}' does not follow Semantic Versioning (X.Y.Z)"
+            exit 1
+          fi
+          echo "VERSION file format is valid semver."
+
+  validate-changelog:
+    name: Validate CHANGELOG.md (Keep a Changelog)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate CHANGELOG format
+        uses: mindsers/changelog-reader-action@1faaf50aa09d5793d9a100819973df801febfb31 # v2.4.0
+        with:
+          path: ./CHANGELOG.md
+          validation_level: error
+
+  lint-and-format:
+    name: Code Quality, Formatting & Linting (pre-commit)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Install Qt 6.11.1
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: '6.11.1'
+          arch: 'linux_gcc_64'
+          modules: 'qtmultimedia'
+          cache: true
+          setup-python: false
+          aqtversion: '==3.3.0'
+
+      - name: Install pre-commit and clang-format
+        run: pip install pre-commit clang-format==22.1.8
+
+      - name: Cache pre-commit environments
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+      - name: Run pre-commit hooks
+        run: |
+          echo "Running pre-commit hooks on all files..."
+          pre-commit run --all-files --show-diff-on-failure
+
+  lint-workflows-and-scripts:
+    name: Lint Workflows & Scripts (zizmor, hadolint, shellcheck)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run zizmor security audit on GitHub Actions
+        uses: zizmorcore/zizmor-action@70fb788f84895a7701f5643d103d587e460b5c99 # v0.6.3
+        with:
+          advanced-security: false
+          min-severity: medium
+
+      - name: Run hadolint on Dockerfiles
+        run: |
+          docker run --rm -v "${GITHUB_WORKSPACE}:/mnt:ro" -w /mnt hadolint/hadolint:latest hadolint \
+            packaging/deb/Dockerfile.deb \
+            packaging/rpm/Dockerfile.rpm \
+            packaging/arch/Dockerfile.arch
+
+      - name: Run shellcheck on packaging scripts
+        run: |
+          shellcheck \
+            --exclude=SC2034,SC2154,SC2164 \
+            packaging/deb/build-deb.sh \
+            packaging/rpm/build-rpm.sh \
+            packaging/arch/build-arch.sh \
+            packaging/deb/postinst \
+            packaging/deb/prerm \
+            packaging/deb/postrm \
+            packaging/arch/qtscribe.install \
+            packaging/arch/PKGBUILD \
+            scripts/ci/check-wayland-only.sh
+
+      - name: Verify .SRCINFO is in sync with PKGBUILD
+        run: |
+          docker run --rm \
+            -v "${GITHUB_WORKSPACE}/packaging/arch:/pkg:ro" \
+            archlinux:base-devel@sha256:61f7de2dd88cc4ba1fe36c24cfe1a503c3936984492d6405eeab013ce6ac68c5 \
+            bash -c "useradd -m u && cp /pkg/PKGBUILD /pkg/qtscribe.install /home/u/ && chown -R u:u /home/u && su u -c 'cd /home/u && makepkg --printsrcinfo'" > /tmp/generated-srcinfo
+          if ! diff -u packaging/arch/.SRCINFO /tmp/generated-srcinfo; then
+            echo "ERROR: packaging/arch/.SRCINFO is out of sync with PKGBUILD."
+            echo "Regenerate with: makepkg --printsrcinfo > packaging/arch/.SRCINFO"
+            exit 1
+          fi
+
+  lint-qml:
+    name: QML Linting & AOT Verification (qmllint & aotstats)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Install Qt 6.11.1
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: '6.11.1'
+          arch: 'linux_gcc_64'
+          modules: 'qtmultimedia'
+          cache: true
+          setup-python: false
+          aqtversion: '==3.3.0'
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build \
+            pkg-config \
+            libwayland-dev \
+            wayland-protocols \
+            qtkeychain-qt6-dev \
+            libsecret-1-dev \
+            libevdev-dev \
+            libcap-dev \
+            libasound2-dev \
+            libpulse-dev
+
+      - name: Configure CMake
+        run: |
+          cmake -B build -S . -GNinja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="${QT_ROOT_DIR};/usr/lib/x86_64-linux-gnu" \
+            -DENABLE_QT_DEPLOYMENT=OFF \
+            -DBUILD_KEYINJECTORD=ON
+
+      - name: Run qmllint on QML codebase
+        run: |
+          ninja -C build all_qmllint
+
+      - name: Generate AOT compilation stats
+        run: |
+          cmake --build build --target all_aotstats
+          test -f build/.rcc/qmlcache/all_aotstats.txt
+          cp build/.rcc/qmlcache/all_aotstats.txt build/all_aotstats.txt
+
+      - name: Upload QML AOT stats artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: qml-aotstats
+          path: build/all_aotstats.txt
+          if-no-files-found: error
+
+  analyze:
+    name: Static Analysis (clang-tidy)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Install Qt 6.11.1
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: '6.11.1'
+          arch: 'linux_gcc_64'
+          modules: 'qtmultimedia'
+          cache: true
+          setup-python: false
+          aqtversion: '==3.3.0'
+
+      - name: Install Clang, Clang-Tidy and Build Tools
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends \
+            clang-18 \
+            clang-tidy-18 \
+            ninja-build \
+            pkg-config \
+            libwayland-dev \
+            wayland-protocols \
+            qtkeychain-qt6-dev \
+            libsecret-1-dev \
+            libevdev-dev \
+            libcap-dev \
+            libasound2-dev \
+            libpulse-dev
+
+      - name: Configure CMake with Clang and Clang-Tidy
+        run: |
+          cmake -B build -S . -GNinja \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_PREFIX_PATH="${QT_ROOT_DIR};/usr/lib/x86_64-linux-gnu" \
+            -DCMAKE_C_COMPILER=clang-18 \
+            -DCMAKE_CXX_COMPILER=clang++-18 \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DENABLE_CLANG_TIDY=ON \
+            -DENABLE_QT_DEPLOYMENT=OFF \
+            -DBUILD_KEYINJECTORD=ON
+
+      - name: Run Clang-Tidy on first-party targets
+        run: |
+          ninja -C build qtscribe_core keyinjectord qtscribe
+
+  sanitizers:
+    name: Sanitizers (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: asan-ubsan
+            preset: ci-sanitizer
+          - name: tsan
+            preset: ci-sanitizer-tsan
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
+        with:
+          python-version: '3.12'
+
+      - name: Install Qt 6.11.1
+        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        with:
+          version: '6.11.1'
+          arch: 'linux_gcc_64'
+          modules: 'qtmultimedia'
+          cache: true
+          setup-python: false
+          aqtversion: '==3.3.0'
+
+      - name: Install build dependencies and sanitizer runtime libraries
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y --no-install-recommends \
+            ninja-build \
+            ccache \
+            pkg-config \
+            libwayland-dev \
+            wayland-protocols \
+            qtkeychain-qt6-dev \
+            libsecret-1-dev \
+            libevdev-dev \
+            libcap-dev \
+            libasound2-dev \
+            libpulse-dev \
+            libasan8 \
+            libubsan1 \
+            libtsan2
+
+      - name: Cache compiler objects
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/ccache
+          key: ccache-${{ runner.os }}-${{ matrix.name }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ matrix.name }}-
+
+      - name: Configure CMake with ${{ matrix.name }}
+        run: |
+          cmake --preset ${{ matrix.preset }} \
+            -DCMAKE_PREFIX_PATH="${QT_ROOT_DIR};/usr/lib/x86_64-linux-gnu" \
+            -DENABLE_QT_DEPLOYMENT=OFF
+
+      - name: Build targets under ${{ matrix.name }}
+        run: |
+          cmake --build --preset ${{ matrix.preset }}
+
+      - name: Run test suite under ${{ matrix.name }}
+        run: |
+          ctest --preset ${{ matrix.preset }} --output-on-failure
+
+  build-and-test:
+    name: Build & Package Validation (Ubuntu 24.04 / Qt 6.11)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Build & Validate Debian Package
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: packaging/deb/Dockerfile.deb
+          target: export
+          outputs: type=local,dest=./dist/deb
+          cache-from: type=gha,scope=ci-deb-build
+          cache-to: type=gha,mode=max,scope=ci-deb-build
+
+      - name: Verify Debian package artifact output
+        run: |
+          echo "Generated Debian packages:"
+          ls -lh ./dist/deb/*.deb
+          test -f "$(find ./dist/deb -maxdepth 1 -name '*.deb' | head -n 1)"
+
+      - name: Assert Wayland-only packaging config
+        run: bash scripts/ci/check-wayland-only.sh

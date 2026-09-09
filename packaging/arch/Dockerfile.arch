@@ -1,0 +1,134 @@
+# syntax=docker/dockerfile:1
+FROM archlinux:base-devel@sha256:61f7de2dd88cc4ba1fe36c24cfe1a503c3936984492d6405eeab013ce6ac68c5 AS builder
+
+ARG APP_NAME=qtscribe
+
+# Initialize pacman keyring and install build + runtime dependencies
+RUN pacman-key --init && \
+    pacman-key --populate archlinux && \
+    pacman -Syu --noconfirm \
+        cmake \
+        ninja \
+        gcc \
+        pkgconf \
+        wayland-protocols \
+        desktop-file-utils \
+        namcap \
+        sudo \
+        git \
+        tar \
+        gzip \
+        qt6-base \
+        qt6-declarative \
+        qt6-multimedia \
+        qt6-svg \
+        qt6-wayland \
+        qtkeychain-qt6 \
+        libevdev \
+        libcap \
+        wayland \
+        wl-clipboard \
+        vulkan-headers \
+        vulkan-icd-loader \
+        shaderc \
+        spirv-headers \
+        hicolor-icon-theme && \
+    pacman -Scc --noconfirm
+
+# Create non-root builduser with passwordless sudo (required by makepkg)
+RUN useradd -m -s /bin/bash builduser && \
+    echo "builduser ALL=(ALL) NOPASSWD: ALL" > /etc/sudoers.d/builduser && \
+    chmod 0440 /etc/sudoers.d/builduser
+
+# Pre-clone whisper.cpp at pinned commit so CMake does not download it during every build
+# Pinned to v1.9.3 — commit 371b5a7561823ab2bb32142d2751e35e7534727b
+RUN git clone https://github.com/ggml-org/whisper.cpp.git /opt/whisper-src && \
+    git -C /opt/whisper-src checkout 371b5a7561823ab2bb32142d2751e35e7534727b && \
+    chown -R builduser:builduser /opt/whisper-src
+
+WORKDIR /build
+
+# Copy source tree and packaging templates
+COPY --chown=builduser:builduser . /build/src-tree
+COPY --chown=builduser:builduser packaging/arch/PKGBUILD /build/PKGBUILD
+COPY --chown=builduser:builduser packaging/arch/qtscribe.install /build/qtscribe.install
+
+RUN chown -R builduser:builduser /build
+
+USER builduser
+WORKDIR /build
+
+ARG APP_VERSION=""
+ARG APP_RELEASE=1
+
+# SOURCE_DATE_EPOCH for reproducible timestamps; GZIP=-n strips gzip metadata
+ARG SOURCE_DATE_EPOCH=0
+ENV SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}
+ENV GZIP="-n"
+
+# Resolve version, create deterministic source archive, compute sha256sum, inject into PKGBUILD, and build
+RUN set -eux; \
+    if [ -z "${APP_VERSION}" ]; then \
+        APP_VERSION=$(cat /build/src-tree/VERSION | tr -d '[:space:]'); \
+    fi; \
+    echo "Building Arch package for ${APP_NAME} version ${APP_VERSION} release ${APP_RELEASE}"; \
+    mkdir -p /build/${APP_NAME}-${APP_VERSION}; \
+    cp -a /build/src-tree/. /build/${APP_NAME}-${APP_VERSION}/; \
+    tar \
+        --sort=name \
+        --mtime="@${SOURCE_DATE_EPOCH}" \
+        --owner=0 \
+        --group=0 \
+        --numeric-owner \
+        --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime \
+        --exclude='.git' \
+        --exclude='build*' \
+        --exclude='dist' \
+        -czf /build/${APP_NAME}-${APP_VERSION}.tar.gz \
+        -C /build \
+        "${APP_NAME}-${APP_VERSION}"; \
+    ARCHIVE_SHA256=$(sha256sum /build/${APP_NAME}-${APP_VERSION}.tar.gz | awk '{print $1}'); \
+    echo "Source archive SHA256: ${ARCHIVE_SHA256}"; \
+    sed -i "s/^pkgver=.*/pkgver=${APP_VERSION}/" /build/PKGBUILD && \
+    sed -i "s/^pkgrel=.*/pkgrel=${APP_RELEASE}/" /build/PKGBUILD && \
+    sed -i "s|^source=.*|source=(\"${APP_NAME}-${APP_VERSION}.tar.gz\")|" /build/PKGBUILD && \
+    sed -i "s|^sha256sums=.*|sha256sums=(\"${ARCHIVE_SHA256}\")|" /build/PKGBUILD && \
+    makepkg --noconfirm --nodeps
+
+USER root
+
+RUN set -eux; \
+    PKG_FILE=$(find /build -type f -name "${APP_NAME}-*.pkg.tar.zst" | head -n 1); \
+    echo "============================================================"; \
+    echo "Inspecting Arch package: ${PKG_FILE}"; \
+    echo "============================================================"; \
+    pacman -Qip "${PKG_FILE}"; \
+    \
+    echo "============================================================"; \
+    echo "Inspecting package file list:"; \
+    echo "============================================================"; \
+    pacman -Qlp "${PKG_FILE}"; \
+    \
+    echo "============================================================"; \
+    echo "Running Namcap package linter (strict — failures are fatal):"; \
+    echo "============================================================"; \
+    namcap /build/PKGBUILD; \
+    namcap "${PKG_FILE}"; \
+    \
+    echo "============================================================"; \
+    echo "Testing clean installation via pacman:"; \
+    echo "============================================================"; \
+    pacman -U --noconfirm "${PKG_FILE}"; \
+    \
+    echo "============================================================"; \
+    echo "Validating installed binaries & capabilities:"; \
+    echo "============================================================"; \
+    test -x /usr/bin/qtscribe; \
+    test -x /usr/bin/keyinjectord; \
+    test -f /usr/share/applications/io.github.qtscribe.desktop; \
+    desktop-file-validate /usr/share/applications/io.github.qtscribe.desktop; \
+    getcap /usr/bin/keyinjectord | grep -E 'cap_dac_override[+=]p'
+
+FROM scratch AS export
+
+COPY --from=builder /build/*.pkg.tar.zst /
