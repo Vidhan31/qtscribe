@@ -1,0 +1,236 @@
+{
+    "$schema": "https://cmake.org/cmake/help/latest/_downloads/schema.json",
+    "version": 8,
+    "include": [
+        "src/keyinjectord/CMakePresets.json"
+    ],
+    "configurePresets": [
+        {
+            "name": "linux-qt6-debug",
+            "displayName": "Qt 6 Debug",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_PREFIX_PATH": "$env{QT_DIR};$env{CMAKE_PREFIX_PATH}",
+                "BUILD_KEYINJECTORD": "ON"
+            },
+            "environment": {
+                "QT_QPA_PLATFORM": "wayland"
+            }
+        },
+        {
+            "name": "linux-qt6-release",
+            "displayName": "Qt 6 Release",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build-release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release",
+                "CMAKE_PREFIX_PATH": "$env{QT_DIR};$env{CMAKE_PREFIX_PATH}",
+                "BUILD_KEYINJECTORD": "ON"
+            },
+            "environment": {
+                "QT_QPA_PLATFORM": "wayland"
+            }
+        },
+        {
+            "name": "linux-qt6-relwithdebinfo",
+            "displayName": "Qt 6 RelWithDebInfo",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build-relwithdebinfo",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo",
+                "CMAKE_PREFIX_PATH": "$env{QT_DIR};$env{CMAKE_PREFIX_PATH}",
+                "BUILD_KEYINJECTORD": "ON"
+            },
+            "environment": {
+                "QT_QPA_PLATFORM": "wayland"
+            }
+        },
+        {
+            "name": "ci-sanitizer",
+            "displayName": "CI Sanitizer (ASan + UBSan)",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build-sanitizer",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_PREFIX_PATH": "$env{QT_DIR};$env{CMAKE_PREFIX_PATH}",
+                "BUILD_KEYINJECTORD": "ON",
+                "ENABLE_ASAN_UBSAN": "ON"
+            },
+            "environment": {
+                "QT_QPA_PLATFORM": "offscreen",
+                "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1",
+                "LSAN_OPTIONS": "suppressions=${sourceDir}/tests/sanitizers/lsan.supp",
+                "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1:suppressions=${sourceDir}/tests/sanitizers/ubsan.supp"
+            }
+        },
+        {
+            "name": "ci-sanitizer-tsan",
+            "displayName": "CI Sanitizer (TSan)",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build-sanitizer-tsan",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_PREFIX_PATH": "$env{QT_DIR};$env{CMAKE_PREFIX_PATH}",
+                "BUILD_KEYINJECTORD": "ON",
+                "ENABLE_TSAN": "ON"
+            },
+            "environment": {
+                "QT_QPA_PLATFORM": "offscreen",
+                "TSAN_OPTIONS": "halt_on_error=1:second_deadlock_stack=1:suppressions=${sourceDir}/tests/sanitizers/tsan.supp"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "build-debug",
+            "configurePreset": "linux-qt6-debug"
+        },
+        {
+            "name": "build-release",
+            "configurePreset": "linux-qt6-release"
+        },
+        {
+            "name": "build-relwithdebinfo",
+            "configurePreset": "linux-qt6-relwithdebinfo"
+        },
+        {
+            "name": "ci-sanitizer",
+            "configurePreset": "ci-sanitizer"
+        },
+        {
+            "name": "build-ci-sanitizer",
+            "configurePreset": "ci-sanitizer"
+        },
+        {
+            "name": "ci-sanitizer-tsan",
+            "configurePreset": "ci-sanitizer-tsan"
+        },
+        {
+            "name": "build-ci-sanitizer-tsan",
+            "configurePreset": "ci-sanitizer-tsan"
+        }
+    ],
+    "testPresets": [
+        {
+            "name": "test-debug",
+            "displayName": "Test (Debug)",
+            "configurePreset": "linux-qt6-debug",
+            "output": {
+                "outputOnFailure": true
+            },
+            "environment": {
+                "QT_QPA_PLATFORM": "offscreen"
+            }
+        },
+        {
+            "name": "test-release",
+            "displayName": "Test (Release)",
+            "configurePreset": "linux-qt6-release",
+            "output": {
+                "outputOnFailure": true
+            },
+            "environment": {
+                "QT_QPA_PLATFORM": "offscreen"
+            }
+        },
+        {
+            "name": "test-relwithdebinfo",
+            "displayName": "Test (RelWithDebInfo)",
+            "configurePreset": "linux-qt6-relwithdebinfo",
+            "output": {
+                "outputOnFailure": true
+            },
+            "environment": {
+                "QT_QPA_PLATFORM": "offscreen"
+            }
+        },
+        {
+            "name": "ci-sanitizer",
+            "displayName": "Test (ASan+UBSan)",
+            "configurePreset": "ci-sanitizer",
+            "output": {
+                "outputOnFailure": true
+            },
+            "environment": {
+                "QT_QPA_PLATFORM": "offscreen",
+                "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1",
+                "LSAN_OPTIONS": "suppressions=${sourceDir}/tests/sanitizers/lsan.supp",
+                "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1:suppressions=${sourceDir}/tests/sanitizers/ubsan.supp"
+            }
+        },
+        {
+            "name": "test-ci-sanitizer",
+            "displayName": "Test (ASan+UBSan)",
+            "configurePreset": "ci-sanitizer",
+            "output": {
+                "outputOnFailure": true
+            },
+            "environment": {
+                "QT_QPA_PLATFORM": "offscreen",
+                "ASAN_OPTIONS": "detect_leaks=1:halt_on_error=1",
+                "LSAN_OPTIONS": "suppressions=${sourceDir}/tests/sanitizers/lsan.supp",
+                "UBSAN_OPTIONS": "halt_on_error=1:print_stacktrace=1:suppressions=${sourceDir}/tests/sanitizers/ubsan.supp"
+            }
+        },
+        {
+            "name": "ci-sanitizer-tsan",
+            "displayName": "Test (TSan)",
+            "configurePreset": "ci-sanitizer-tsan",
+            "output": {
+                "outputOnFailure": true
+            },
+            "environment": {
+                "QT_QPA_PLATFORM": "offscreen",
+                "TSAN_OPTIONS": "halt_on_error=1:second_deadlock_stack=1:suppressions=${sourceDir}/tests/sanitizers/tsan.supp"
+            }
+        },
+        {
+            "name": "test-ci-sanitizer-tsan",
+            "displayName": "Test (TSan)",
+            "configurePreset": "ci-sanitizer-tsan",
+            "output": {
+                "outputOnFailure": true
+            },
+            "environment": {
+                "QT_QPA_PLATFORM": "offscreen",
+                "TSAN_OPTIONS": "halt_on_error=1:second_deadlock_stack=1:suppressions=${sourceDir}/tests/sanitizers/tsan.supp"
+            }
+        }
+    ],
+    "packagePresets": [
+        {
+            "name": "package-deb",
+            "displayName": "Package Debian (.deb)",
+            "configurePreset": "linux-qt6-release",
+            "generators": [
+                "DEB"
+            ]
+        }
+    ],
+    "workflowPresets": [
+        {
+            "name": "ci-release",
+            "displayName": "CI Release (Configure, Build, Test, Package)",
+            "steps": [
+                {
+                    "type": "configure",
+                    "name": "linux-qt6-release"
+                },
+                {
+                    "type": "build",
+                    "name": "build-release"
+                },
+                {
+                    "type": "test",
+                    "name": "test-release"
+                },
+                {
+                    "type": "package",
+                    "name": "package-deb"
+                }
+            ]
+        }
+    ]
+}

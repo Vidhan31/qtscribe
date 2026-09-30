@@ -1,0 +1,44 @@
+# ThreadSanitizer (TSan) suppressions for external runtime libraries (Qt, PulseAudio, ALSA, DBus, GLib)
+
+# Deadlock / lock-order-inversion suppressions for external D-Bus and Qt internal locks
+deadlock:*libdbus*
+deadlock:libdbus-1
+deadlock:libdbus-1.so.3
+deadlock:libdbus-1.so
+deadlock:*libQt6DBus*
+deadlock:libQt6DBus
+deadlock:QDBusConnection
+mutex:*libdbus*
+mutex:libdbus-1
+mutex:libdbus-1.so.3
+mutex:*libQt6DBus*
+mutex:libQt6DBus
+
+# Qt framework background threads and event dispatching data races
+race:*libQt6Core*
+race:*libQt6Gui*
+race:*libQt6Qml*
+race:*libQt6Network*
+race:*libQt6DBus*
+race:*libQt6Multimedia*
+race:libQt6Core.so
+race:libQt6Gui.so
+race:libQt6Qml.so
+race:libQt6Network.so
+race:libQt6DBus.so
+race:libQt6Multimedia.so
+race:QThread
+race:QWaitCondition
+race:QCoreApplication
+
+# System audio, dbus, and glib libraries
+race:*libdbus*
+race:libdbus-1.so
+race:*libpulse*
+race:libpulse.so
+race:libpulsecommon
+race:*libasound*
+race:libasound.so
+race:*libglib*
+race:libglib-2.0.so
+race:g_main_context

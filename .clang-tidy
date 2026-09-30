@@ -1,0 +1,37 @@
+---
+# QtScribe clang-tidy configuration
+# Incremental adoption strategy: high-confidence bugprone & performance checks treated as errors.
+Checks: >
+  -*,
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-narrowing-conversions,
+  -bugprone-implicit-widening-of-multiplication-result,
+  -bugprone-branch-clone,
+  performance-*,
+  -performance-avoid-endl,
+  modernize-*,
+  -modernize-use-trailing-return-type,
+  -modernize-avoid-c-arrays,
+  -modernize-use-nodiscard,
+  clang-analyzer-*,
+  -clang-analyzer-optin.*,
+  -clang-analyzer-cplusplus.NewDelete,
+  -clang-analyzer-cplusplus.NewDeleteLeaks,
+  -clang-analyzer-core.uninitialized.Assign,
+  misc-*,
+  -misc-include-cleaner,
+  -misc-non-private-member-variables-in-classes,
+  -misc-no-recursion,
+  readability-*,
+  -readability-magic-numbers,
+  -readability-identifier-length,
+  -readability-function-cognitive-complexity,
+  -readability-isolate-declaration,
+  -readability-implicit-bool-conversion
+
+WarningsAsErrors: 'bugprone-*,performance-*,clang-analyzer-*'
+
+HeaderFilterRegex: '^.*/(src|tests)/.*'
+FormatStyle: none
+...

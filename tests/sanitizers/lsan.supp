@@ -1,0 +1,38 @@
+# LeakSanitizer (LSan) suppressions for external runtime libraries (Qt, Mesa, DBus, PulseAudio, system libraries)
+
+# Qt 6 core, gui, qml and platform internals
+leak:*libQt6*
+leak:libQt6Core.so
+leak:libQt6Gui.so
+leak:libQt6Qml.so
+leak:libQt6Network.so
+leak:libQt6DBus.so
+leak:libQt6WaylandClient.so
+leak:libQt6Multimedia.so
+leak:QCoreApplication
+leak:QGuiApplication
+leak:QMetaType
+leak:QGlobalStatic
+leak:QSharedPointer
+
+# System and graphics libraries
+leak:*libfontconfig*
+leak:*libfreetype*
+leak:*libglib*
+leak:*libdbus*
+leak:*libpulse*
+leak:*libasound*
+leak:*libvulkan*
+leak:*libEGL*
+leak:*libGL*
+leak:libfontconfig.so
+leak:libfreetype.so
+leak:libglib-2.0.so
+leak:libdbus-1.so
+leak:libpulse.so
+leak:libasound.so
+leak:libvulkan.so
+leak:libEGL.so
+leak:libGLX.so
+leak:libGLdispatch.so
+leak:allocate_memory

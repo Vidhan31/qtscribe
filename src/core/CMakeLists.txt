@@ -1,0 +1,112 @@
+add_library(qtscribe_core STATIC
+    ApplicationContext.h
+    ApplicationContext.cpp
+    AbstractSttClient.h
+    AbstractSttClient.cpp
+    AbstractLlmClient.h
+    AbstractLlmClient.cpp
+    AudioFeedbackPlayer.h
+    AudioFeedbackPlayer.cpp
+    AudioRecorder.h
+    AudioRecorder.cpp
+    DictationPadModel.h
+    DictationPadModel.cpp
+    GlobalShortcutManager.h
+    GlobalShortcutManager.cpp
+    ApiKeyStore.h
+    ApiKeyStore.cpp
+    PresetProvider.h
+    PresetProvider.cpp
+    CloudResponseParser.h
+    CloudResponseParser.cpp
+    HttpRequestRunner.h
+    HttpRequestRunner.cpp
+    NetworkTlsHelper.h
+    NetworkTlsHelper.cpp
+    GroqSttClient.h
+    GroqSttClient.cpp
+    GeminiSttClient.h
+    GeminiSttClient.cpp
+    CloudSttRouter.h
+    CloudSttRouter.cpp
+    WavDecoder.h
+    WavDecoder.cpp
+    WhisperWorker.h
+    WhisperWorker.cpp
+    WhisperSttClient.h
+    WhisperSttClient.cpp
+    ModelDownloader.h
+    ModelDownloader.cpp
+    WhisperModelManager.h
+    WhisperModelManager.cpp
+    GroqLlmClient.h
+    GroqLlmClient.cpp
+    ClipboardManager.h
+    ClipboardManager.cpp
+    DaemonConnector.h
+    DaemonConnector.cpp
+    SystemHealthMonitor.h
+    SystemHealthMonitor.cpp
+    AbstractTextInjector.h
+    AbstractTextInjector.cpp
+    TextInjector.h
+    TextInjector.cpp
+    DaemonDiagnosticModel.h
+    DaemonDiagnosticModel.cpp
+    CompositeSttEngine.h
+    CompositeSttEngine.cpp
+    NotificationPresenter.h
+    NotificationPresenter.cpp
+    DictationCoordinator.h
+    DictationCoordinator.cpp
+    TranscriptionModel.h
+    TranscriptionModel.cpp
+    DBusService.h
+    DBusService.cpp
+    LoggingCategories.h
+    LoggingCategories.cpp
+    LicenseHelper.h
+    ColorUtils.h
+    ColorUtils.cpp
+    NavigationModel.h
+    NavigationModel.cpp
+    CloudProviderModel.h
+    CloudProviderModel.cpp
+    StatusNotifierService.h
+    StatusNotifierService.cpp
+    LinuxNotificationService.h
+    LinuxNotificationService.cpp
+)
+
+target_include_directories(qtscribe_core
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/src
+    SYSTEM PUBLIC
+        ${whisper_SOURCE_DIR}/include
+        ${whisper_SOURCE_DIR}/ggml/include
+        ${whisper_SOURCE_DIR}/examples
+)
+
+target_link_libraries(qtscribe_core
+    PUBLIC
+        whisper
+        Qt6::Core
+        Qt6::Gui
+        Qt6::Qml
+        Qt6::Network
+        Qt6::Multimedia
+        Qt6::DBus
+        Qt6Keychain::Qt6Keychain
+    PRIVATE
+        qtscribe::compiler_flags
+)
+
+if(GGML_VULKAN AND TARGET Vulkan::Vulkan)
+    target_link_libraries(qtscribe_core PRIVATE Vulkan::Vulkan)
+endif()
+
+target_compile_definitions(qtscribe_core
+    PRIVATE
+        QTSCRIBE_VERSION="${PROJECT_VERSION}"
+)

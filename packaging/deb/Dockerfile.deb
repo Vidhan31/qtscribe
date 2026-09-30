@@ -1,0 +1,208 @@
+# syntax=docker/dockerfile:1
+ARG UBUNTU_VERSION=24.04
+FROM ubuntu:${UBUNTU_VERSION}@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517 AS builder
+
+ARG APP_NAME=qtscribe
+ARG QT_VERSION=6.11.1
+ARG QT_ARCH=linux_gcc_64
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system build dependencies, packaging utilities, and runtime development headers
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    g++ \
+    gcc \
+    ninja-build \
+    git \
+    curl \
+    ca-certificates \
+    sudo \
+    pkg-config \
+    tar \
+    gzip \
+    file \
+    dpkg-dev \
+    libcap2-bin \
+    desktop-file-utils \
+    python3 \
+    python3-pip \
+    libwayland-dev \
+    wayland-protocols \
+    libsecret-1-dev \
+    libevdev-dev \
+    libcap-dev \
+    libxkbcommon-dev \
+    libgl1-mesa-dev \
+    libegl1-mesa-dev \
+    libvulkan-dev \
+    glslc \
+    spirv-headers \
+    libfontconfig1-dev \
+    libfreetype6-dev \
+    libglib2.0-dev \
+    libdbus-1-dev \
+    libasound2-dev \
+    libpulse-dev \
+    wl-clipboard \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install latest CMake via official Kitware Linux installer
+# SHA256 sourced from https://github.com/Kitware/CMake/releases/download/v4.4.3/cmake-4.4.3-SHA-256.txt
+ARG CMAKE_VERSION=4.4.3
+ARG CMAKE_SHA256=6decbd2f268e48ed405c5b40563b0334c903209e61fe4ecad460b00c60b27e79
+RUN curl -fsSL "https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.sh" -o /tmp/cmake-install.sh && \
+    echo "${CMAKE_SHA256}  /tmp/cmake-install.sh" | sha256sum -c - && \
+    chmod +x /tmp/cmake-install.sh && \
+    /tmp/cmake-install.sh --prefix=/usr/local --skip-license --exclude-subdir && \
+    rm /tmp/cmake-install.sh && \
+    cmake --version
+
+# Install pinned aqtinstall wheel with hash verification
+# Wheel hash sourced from https://pypi.org/pypi/aqtinstall/3.3.0/json
+ARG AQTINSTALL_VERSION=3.3.0
+ARG AQTINSTALL_SHA256=e88dbd87226f276fdd5d05347a44578d390d93a7f176e9476fbda0a7c9635f69
+RUN pip3 install --no-cache-dir --break-system-packages \
+    "https://files.pythonhosted.org/packages/7f/70/849fa1005fa197fc28a744fd69598ab9da883b737a1ab9461d88721ddd0b/aqtinstall-${AQTINSTALL_VERSION}-py3-none-any.whl#sha256=${AQTINSTALL_SHA256}"
+
+# Install Qt 6.11.1 with multimedia module (qtsvg and qtwayland client are included in base)
+RUN mkdir -p /opt/Qt && \
+    aqt install-qt linux desktop ${QT_VERSION} ${QT_ARCH} \
+        -m qtmultimedia \
+        --outputdir /opt/Qt
+
+ENV QT_DIR=/opt/Qt/${QT_VERSION}/gcc_64
+ENV PATH="${QT_DIR}/bin:${PATH}"
+ENV CMAKE_PREFIX_PATH="${QT_DIR}"
+
+# Verify Qt installation and required Wayland platform plugin
+RUN set -eux; \
+    test -f "${QT_DIR}/bin/qmake"; \
+    test -f "${QT_DIR}/lib/libQt6Core.so"; \
+    test -f "${QT_DIR}/plugins/platforms/libqwayland.so" || test -f "${QT_DIR}/plugins/platforms/libqwayland-generic.so"
+
+# Build QtKeychain from source against Qt 6.11.1
+# Pinned to 0.17.0 — commit 875f77d9f61bd97fd84cca47ce3bc71186dfbd09
+WORKDIR /tmp/qtkeychain-build
+RUN git clone https://github.com/frankosterfeld/qtkeychain.git /tmp/qtkeychain-src && \
+    git -C /tmp/qtkeychain-src checkout 875f77d9f61bd97fd84cca47ce3bc71186dfbd09 && \
+    cmake -S /tmp/qtkeychain-src -B /tmp/qtkeychain-build -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_PREFIX_PATH="${QT_DIR}" \
+        -DCMAKE_INSTALL_PREFIX="${QT_DIR}" \
+        -DBUILD_WITH_QT6=ON \
+        -DBUILD_TEST_APPLICATION=OFF \
+        -DBUILD_TRANSLATIONS=OFF && \
+    cmake --build /tmp/qtkeychain-build && \
+    cmake --install /tmp/qtkeychain-build && \
+    rm -rf /tmp/qtkeychain-src /tmp/qtkeychain-build
+
+# Pre-clone whisper.cpp at pinned commit so CMake does not download it during every build
+# Pinned to v1.9.3 — commit 371b5a7561823ab2bb32142d2751e35e7534727b
+RUN git clone https://github.com/ggml-org/whisper.cpp.git /opt/whisper-src && \
+    git -C /opt/whisper-src checkout 371b5a7561823ab2bb32142d2751e35e7534727b
+
+# Build QtScribe application and package Debian package with CPack
+WORKDIR /build
+COPY . /build/src-tree
+
+ARG APP_VERSION=""
+
+# SOURCE_DATE_EPOCH for reproducible timestamps; GZIP=-n strips gzip metadata
+ARG SOURCE_DATE_EPOCH=0
+ENV SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}
+ENV GZIP="-n"
+
+WORKDIR /build/build
+# No -Werror=* here: whisper.cpp v1.9.3 (third-party FetchContent) declares
+# cmake_minimum_required < 3.10, and CMake 4.4 promotes that to a fatal error
+# under every -Werror spelling (author includes deprecated). Guard belongs in
+# a scoped CI lint job, not the packaging build.
+RUN cmake -S /build/src-tree -B /build/build -G Ninja \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_PREFIX_PATH="${QT_DIR}" \
+        -DCMAKE_INSTALL_PREFIX="/opt/qtscribe" \
+        -DENABLE_QT_DEPLOYMENT=ON \
+        -DENABLE_CPACK_DEB=ON \
+        -DFETCHCONTENT_SOURCE_DIR_WHISPER=/opt/whisper-src \
+        ${APP_VERSION:+-DQTSCRIBE_VERSION=${APP_VERSION}} && \
+    cmake --build /build/build && \
+    QT_QPA_PLATFORM=offscreen ctest --test-dir /build/build --output-on-failure && \
+    cpack -G DEB
+
+RUN set -eux; \
+    DEB_PACKAGE=$(find /build/build -maxdepth 1 -name "*.deb" | head -n 1); \
+    echo "============================================================"; \
+    echo "Inspecting and validating generated Debian package: ${DEB_PACKAGE}"; \
+    echo "============================================================"; \
+    test -f "${DEB_PACKAGE}"; \
+    \
+    echo "--- Inspecting Debian package metadata & dependencies ---"; \
+    dpkg-deb -I "${DEB_PACKAGE}"; \
+    \
+    echo "--- Listing package contents ---"; \
+    dpkg-deb -c "${DEB_PACKAGE}"; \
+    \
+    echo "--- Testing clean package installation via dpkg ---"; \
+    dpkg -i "${DEB_PACKAGE}"; \
+    \
+    echo "--- Checking installed binaries in /opt/qtscribe/bin ---"; \
+    test -x /opt/qtscribe/bin/qtscribe; \
+    test -x /opt/qtscribe/bin/keyinjectord; \
+    test -f /opt/qtscribe/bin/qt.conf; \
+    \
+    echo "--- Checking system wl-clipboard tools ---"; \
+    test -x "$(which wl-copy)"; \
+    test -x "$(which wl-paste)"; \
+    \
+    echo "--- Checking symlinks in /usr/bin ---"; \
+    test -L /usr/bin/qtscribe; \
+    test "$(readlink -f /usr/bin/qtscribe)" = "/opt/qtscribe/bin/qtscribe"; \
+    test -L /usr/bin/keyinjectord; \
+    test "$(readlink -f /usr/bin/keyinjectord)" = "/opt/qtscribe/bin/keyinjectord"; \
+    \
+    echo "--- Checking desktop file & icons in /usr/share ---"; \
+    test -f /usr/share/applications/io.github.qtscribe.desktop; \
+    desktop-file-validate /usr/share/applications/io.github.qtscribe.desktop; \
+    test -f /usr/share/icons/hicolor/512x512/apps/qtscribe.png; \
+    test -f /usr/share/icons/hicolor/512x512/apps/io.github.qtscribe.png; \
+    \
+    echo "--- Checking keyinjectord capability (cap_dac_override) ---"; \
+    getcap /opt/qtscribe/bin/keyinjectord | grep -E 'cap_dac_override'; \
+    \
+    echo "--- Checking Wayland platform plugin ---"; \
+    test -f /opt/qtscribe/plugins/platforms/libqwayland.so || \
+    test -f /opt/qtscribe/plugins/platforms/libqwayland-generic.so || \
+    test -f /opt/qtscribe/plugins/platforms/libqwayland-egl.so; \
+    \
+    echo "--- Asserting complete absence of X11/XCB plugins & libraries ---"; \
+    test -z "$(find /opt/qtscribe -name "*xcb*")"; \
+    test -z "$(find /opt/qtscribe -name "*X11*")"; \
+    test -z "$(find /opt/qtscribe -name "*eglfs*")"; \
+    \
+    echo "--- Checking Qt companion ICU libraries ---"; \
+    find /opt/qtscribe -name "libicui18n.so*" | grep .; \
+    \
+    echo "--- Verifying that lib/ contains ONLY Qt6, qtkeychain, and Qt-bundled ICU libraries ---"; \
+    NON_QT_LIBS=$(find /opt/qtscribe -type f -name "*.so*" \
+        ! -path "*/plugins/*" \
+        ! -path "*/qml/*" \
+        ! -name "libQt6*" \
+        ! -name "libqt6keychain*" \
+        ! -name "libicu*" \
+        ! -name "libq*" || true); \
+    if [ -n "${NON_QT_LIBS}" ]; then \
+        echo "ERROR: Disallowed non-Qt libraries found in package:"; \
+        echo "${NON_QT_LIBS}"; \
+        exit 1; \
+    fi; \
+    \
+    echo "--- Testing package removal and cleanup ---"; \
+    dpkg -r qtscribe; \
+    test ! -e /usr/bin/qtscribe; \
+    test ! -e /usr/bin/keyinjectord; \
+    echo "Debian package validation succeeded cleanly!"
+
+FROM scratch AS export
+
+COPY --from=builder /build/build/*.deb /

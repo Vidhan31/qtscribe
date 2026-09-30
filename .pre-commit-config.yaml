@@ -1,0 +1,38 @@
+# See https://pre-commit.com for more information
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+
+  - repo: local
+    hooks:
+      - id: clang-format
+        name: C++ Formatting (clang-format)
+        description: Format C++ source and header files with clang-format
+        entry: clang-format -i
+        language: system
+        files: ^src/.*\.(cpp|h)$
+        types: [file]
+
+      - id: qmlformat
+        name: QML Formatting (qmlformat)
+        description: Format QML files with Qt qmlformat. Prefers $QT_ROOT_DIR/bin to match the pinned Qt version used in CI.
+        entry: bash -c 'QMLFORMAT=""; if [ -n "${QT_ROOT_DIR}" ] && [ -x "${QT_ROOT_DIR}/bin/qmlformat" ]; then QMLFORMAT="${QT_ROOT_DIR}/bin/qmlformat"; elif [ -x "$HOME/Qt/6.11.1/gcc_64/bin/qmlformat" ]; then QMLFORMAT="$HOME/Qt/6.11.1/gcc_64/bin/qmlformat"; elif command -v qmlformat >/dev/null 2>&1; then QMLFORMAT="qmlformat"; else QMLFORMAT="qmlformat-qt6"; fi; exec "${QMLFORMAT}" --inplace "$@"' --
+        language: system
+        files: ^src/.*\.qml$
+        types: [file]
+
+      - id: qmllint
+        name: QML Linting (qmllint)
+        description: Verify QML files against qmllint rules. Skipped when no build directory exists (e.g. CI pre-build).
+        entry: bash -c 'if [ ! -d build ] && [ ! -d build-release ] && [ ! -d build-relwithdebinfo ]; then exit 0; fi; if command -v qmllint >/dev/null 2>&1; then exec qmllint -I build -I build-release -I build-relwithdebinfo "$@"; else exec qmllint-qt6 -I build -I build-release -I build-relwithdebinfo "$@"; fi' --
+        language: system
+        files: ^src/ui/.*\.qml$
+        types: [file]

@@ -1,0 +1,114 @@
+# syntax=docker/dockerfile:1
+ARG FEDORA_VERSION=44
+FROM fedora:${FEDORA_VERSION}@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80 AS builder
+
+ARG APP_NAME=qtscribe
+
+RUN dnf update -y && dnf install -y \
+    rpm-build \
+    rpmdevtools \
+    gcc-c++ \
+    cmake \
+    ninja-build \
+    desktop-file-utils \
+    libappstream-glib \
+    tar \
+    gzip \
+    file \
+    libcap \
+    \
+    qt6-rpm-macros \
+    qt6-qtbase-devel \
+    qt6-qtdeclarative-devel \
+    qt6-qtmultimedia-devel \
+    qt6-qtsvg-devel \
+    qt6-qtwayland \
+    qtkeychain-qt6-devel \
+    \
+    libevdev-devel \
+    libcap-devel \
+    wayland-devel \
+    wayland-protocols-devel \
+    wl-clipboard \
+    git \
+    vulkan-loader-devel \
+    vulkan-headers \
+    glslc \
+    spirv-headers-devel \
+    && dnf clean all
+
+# Pre-clone whisper.cpp at pinned commit so CMake does not download it during every build
+# Pinned to v1.9.3 — commit 371b5a7561823ab2bb32142d2751e35e7534727b
+RUN git clone https://github.com/ggml-org/whisper.cpp.git /opt/whisper-src && \
+    git -C /opt/whisper-src checkout 371b5a7561823ab2bb32142d2751e35e7534727b
+
+WORKDIR /build
+
+# Copy source tree and spec file
+COPY . /build/src-tree
+COPY packaging/rpm/qtscribe.spec /root/rpmbuild/SPECS/
+
+ARG APP_VERSION=""
+ARG APP_RELEASE=1
+
+# SOURCE_DATE_EPOCH for reproducible timestamps; GZIP=-n strips gzip metadata
+ARG SOURCE_DATE_EPOCH=0
+ENV SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}
+ENV GZIP="-n"
+
+# Resolve version from canonical VERSION file if not overridden, create source archive, and build RPM
+RUN set -eux; \
+    if [ -z "${APP_VERSION}" ]; then \
+        APP_VERSION=$(cat /build/src-tree/VERSION | tr -d '[:space:]'); \
+    fi; \
+    echo "Building RPM package for ${APP_NAME} version ${APP_VERSION} release ${APP_RELEASE}"; \
+    mkdir -p /build/${APP_NAME}-${APP_VERSION}; \
+    cp -a /build/src-tree/. /build/${APP_NAME}-${APP_VERSION}/; \
+    mkdir -p /root/rpmbuild/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}; \
+    tar \
+        --sort=name \
+        --mtime="@${SOURCE_DATE_EPOCH}" \
+        --owner=0 \
+        --group=0 \
+        --numeric-owner \
+        --pax-option=exthdr.name=%d/PaxHeaders/%f,delete=atime,delete=ctime \
+        --exclude='.git' \
+        --exclude='build*' \
+        --exclude='dist' \
+        -czf /root/rpmbuild/SOURCES/${APP_NAME}-${APP_VERSION}.tar.gz \
+        -C /build \
+        "${APP_NAME}-${APP_VERSION}"; \
+    rpmbuild -bb \
+        --define "version ${APP_VERSION}" \
+        --define "release ${APP_RELEASE}" \
+        /root/rpmbuild/SPECS/qtscribe.spec
+
+RUN set -eux; \
+    BIN_RPM=$(find /root/rpmbuild/RPMS -type f -name "${APP_NAME}-*.rpm" ! -name "*debug*" | head -n 1); \
+    echo "============================================================"; \
+    echo "Inspecting binary RPM: ${BIN_RPM}"; \
+    echo "============================================================"; \
+    rpm -qpil "${BIN_RPM}"; \
+    \
+    echo "============================================================"; \
+    echo "Checking RPM dependencies:"; \
+    echo "============================================================"; \
+    rpm -qp --requires "${BIN_RPM}"; \
+    \
+    echo "============================================================"; \
+    echo "Testing clean installation via RPM:"; \
+    echo "============================================================"; \
+    rpm -ivh "${BIN_RPM}"; \
+    \
+    echo "============================================================"; \
+    echo "Validating installed binaries & capabilities:"; \
+    echo "============================================================"; \
+    test -x /usr/bin/qtscribe; \
+    test -x /usr/bin/keyinjectord; \
+    test -f /usr/share/applications/io.github.qtscribe.desktop; \
+    desktop-file-validate /usr/share/applications/io.github.qtscribe.desktop; \
+    getcap /usr/bin/keyinjectord | grep -E 'cap_dac_override[+=]p'
+
+FROM scratch AS export
+
+COPY --from=builder /root/rpmbuild/RPMS/*/*.rpm /

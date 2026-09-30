@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=QtScribe
+Exec=qtscribe
+Icon=io.github.qtscribe
+Categories=Utility;
+Terminal=false
+StartupWMClass=io.github.qtscribe
+Comment=Speech to Text Application

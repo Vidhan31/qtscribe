@@ -1,0 +1,6 @@
+# UndefinedBehaviorSanitizer (UBSan) suppressions for external libraries
+
+# Qt and fontconfig internal alignment and vptr checks
+alignment:libQt6*
+alignment:libfontconfig*
+vptr:libQt6*
