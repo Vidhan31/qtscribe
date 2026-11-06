@@ -311,7 +311,7 @@ jobs:
           ccache --show-stats
 
   sanitizers:
-    name: Sanitizers (${{ matrix.name }})
+    name: Sanitizers
     runs-on: ubuntu-24.04
     needs: [detect-changes]
     if: github.event_name != 'pull_request' || needs.detect-changes.outputs.cpp == 'true'
@@ -376,7 +376,7 @@ jobs:
           ctest --preset ${{ matrix.preset }} --output-on-failure
 
   package-validation:
-    name: Package Validation (${{ matrix.name }})
+    name: Package Validation
     runs-on: ubuntu-24.04
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
