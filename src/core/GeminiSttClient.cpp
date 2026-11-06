@@ -119,6 +119,16 @@ ApiKeyStore* GeminiSttClient::keyStore() const {
     return m_keyStore;
 }
 
+void GeminiSttClient::setNetworkAccessManager(QNetworkAccessManager* nam) {
+    if (m_nam == nam) {
+        return;
+    }
+    if (m_nam && m_nam->parent() == this) {
+        m_nam->deleteLater();
+    }
+    m_nam = nam;
+}
+
 QString GeminiSttClient::apiKey() const {
     return m_keyStore ? m_keyStore->apiKey() : QString();
 }

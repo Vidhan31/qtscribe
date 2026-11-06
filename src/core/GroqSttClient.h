@@ -29,6 +29,7 @@ public:
 
     void setKeyStore(ApiKeyStore* store);
     ApiKeyStore* keyStore() const;
+    void setNetworkAccessManager(QNetworkAccessManager* nam);
 
     QString apiKey() const;
     void setApiKey(const QString& key);

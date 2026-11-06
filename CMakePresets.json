@@ -80,6 +80,21 @@
                 "QT_QPA_PLATFORM": "offscreen",
                 "TSAN_OPTIONS": "halt_on_error=1:second_deadlock_stack=1:suppressions=${sourceDir}/tests/sanitizers/tsan.supp"
             }
+        },
+        {
+            "name": "ci-coverage",
+            "displayName": "CI Coverage (GCC --coverage)",
+            "generator": "Ninja",
+            "binaryDir": "${sourceDir}/build-coverage",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "CMAKE_PREFIX_PATH": "$env{QT_DIR};$env{CMAKE_PREFIX_PATH}",
+                "BUILD_KEYINJECTORD": "ON",
+                "ENABLE_COVERAGE": "ON"
+            },
+            "environment": {
+                "QT_QPA_PLATFORM": "offscreen"
+            }
         }
     ],
     "buildPresets": [
@@ -110,6 +125,10 @@
         {
             "name": "build-ci-sanitizer-tsan",
             "configurePreset": "ci-sanitizer-tsan"
+        },
+        {
+            "name": "build-coverage",
+            "configurePreset": "ci-coverage"
         }
     ],
     "testPresets": [
@@ -196,6 +215,17 @@
             "environment": {
                 "QT_QPA_PLATFORM": "offscreen",
                 "TSAN_OPTIONS": "halt_on_error=1:second_deadlock_stack=1:suppressions=${sourceDir}/tests/sanitizers/tsan.supp"
+            }
+        },
+        {
+            "name": "test-coverage",
+            "displayName": "Test (Coverage)",
+            "configurePreset": "ci-coverage",
+            "output": {
+                "outputOnFailure": true
+            },
+            "environment": {
+                "QT_QPA_PLATFORM": "offscreen"
             }
         }
     ],
