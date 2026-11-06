@@ -124,6 +124,7 @@ RUN cmake -S /build/src-tree -B /build/build -G Ninja \
         -DCMAKE_INSTALL_PREFIX="/opt/qtscribe" \
         -DENABLE_QT_DEPLOYMENT=ON \
         -DENABLE_CPACK_DEB=ON \
+        -DENABLE_VULKAN=ON \
         -DFETCHCONTENT_SOURCE_DIR_WHISPER=/opt/whisper-src \
         ${APP_VERSION:+-DQTSCRIBE_VERSION=${APP_VERSION}} && \
     cmake --build /build/build && \

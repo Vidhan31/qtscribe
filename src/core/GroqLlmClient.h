@@ -28,6 +28,7 @@ public:
 
     void setKeyStore(ApiKeyStore* keyStore);
     ApiKeyStore* keyStore() const;
+    void setNetworkAccessManager(QNetworkAccessManager* nam);
 
     bool isBusy() const override;
     bool isCancelled() const;

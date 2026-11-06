@@ -81,6 +81,7 @@ function(add_qtscribe_test name)
     add_test(NAME ${ctest_name} COMMAND ${target})
     set_tests_properties(${ctest_name} PROPERTIES
         ENVIRONMENT "${QTSCRIBE_TEST_ENVIRONMENT}"
+        TIMEOUT 30
     )
 endfunction()
 
@@ -137,6 +138,9 @@ add_qtscribe_test(status_notifier
     TEST_NAME StatusNotifierTest
     LIBRARIES Qt6::Gui Qt6::Network Qt6::DBus
 )
+set_tests_properties(StatusNotifierTest PROPERTIES
+    RESOURCE_LOCK dbus_session
+)
 
 add_qtscribe_test(application_context
     TEST_NAME ApplicationContextTest
@@ -180,6 +184,24 @@ add_qtscribe_test(composite_stt_engine
 add_qtscribe_test(notification_presenter
     TEST_NAME NotificationPresenterTest
     LIBRARIES Qt6::Gui Qt6::Multimedia Qt6::Network Qt6::DBus
+)
+
+add_qtscribe_test(cloud_response_parser
+    TEST_NAME CloudResponseParserTest
+    LIBRARIES Qt6::Network
+)
+
+add_qtscribe_test(transcription_model
+    TEST_NAME TranscriptionModelTest
+    LIBRARIES Qt6::Gui
+)
+
+add_qtscribe_test(api_key_store
+    TEST_NAME ApiKeyStoreTest
+)
+
+add_qtscribe_test(clipboard_manager
+    TEST_NAME ClipboardManagerTest
 )
 
 add_test(NAME WaylandOnlyPackagingTest

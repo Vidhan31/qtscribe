@@ -121,14 +121,19 @@ void TestStatusNotifier::testDBusMenuLayoutAndEvents() {
 void TestStatusNotifier::testRecordingStateUpdates() {
     QDBusInterface sniInterface(m_service->serviceName(), u"/StatusNotifierItem"_s, u"org.kde.StatusNotifierItem"_s,
                                 QDBusConnection::sessionBus());
+    QVERIFY(sniInterface.isValid());
 
-    QCOMPARE(sniInterface.property("IconName").toString(), u"io.github.qtscribe"_s);
+    const uint revInitial = m_service->revision();
+    QCOMPARE(m_coordinator->recording(), false);
 
     m_coordinator->startRecording();
-    QCOMPARE(sniInterface.property("IconName").toString(), u"io.github.qtscribe"_s);
+    QCOMPARE(m_coordinator->recording(), true);
+    QVERIFY(m_service->revision() > revInitial);
 
+    const uint revRecording = m_service->revision();
     m_coordinator->stopRecording();
-    QCOMPARE(sniInterface.property("IconName").toString(), u"io.github.qtscribe"_s);
+    QCOMPARE(m_coordinator->recording(), false);
+    QVERIFY(m_service->revision() > revRecording);
 }
 
 int main(int argc, char* argv[]) {

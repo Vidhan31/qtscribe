@@ -14,17 +14,17 @@ public:
     explicit ClipboardManager(QObject* parent = nullptr);
     ~ClipboardManager() override;
 
-    QString backupText() const;
-    bool setText(const QString& text, bool sensitive = true);
-    void restore(const QString& backup, bool hadContent);
+    virtual QString backupText() const;
+    virtual bool setText(const QString& text, bool sensitive = true);
+    virtual void restore(const QString& backup, bool hadContent);
 
-    void scheduleRestore(const QString& backupText, bool hadContent,
-                         std::chrono::milliseconds delay = std::chrono::milliseconds(800));
+    virtual void scheduleRestore(const QString& backupText, bool hadContent,
+                                 std::chrono::milliseconds delay = std::chrono::milliseconds(800));
     void cancelPendingRestore();
     bool hasActiveBackup() const;
 
     QString lastError() const;
-    QString wlToolPath(const QString& toolName) const;
+    virtual QString wlToolPath(const QString& toolName) const;
 
 signals:
     void lastErrorChanged(const QString& error);

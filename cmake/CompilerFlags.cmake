@@ -132,3 +132,7 @@ endif()
 if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/Sanitizers.cmake")
     include("${CMAKE_CURRENT_LIST_DIR}/Sanitizers.cmake")
 endif()
+
+if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/Coverage.cmake")
+    include("${CMAKE_CURRENT_LIST_DIR}/Coverage.cmake")
+endif()
