@@ -4,9 +4,25 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
+      - 'CMakePresets.json'
+      - '.github/workflows/codeql.yml'
+      - '.github/actions/setup-build-deps/**'
   pull_request:
     branches:
       - main
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
+      - 'CMakePresets.json'
+      - '.github/workflows/codeql.yml'
+      - '.github/actions/setup-build-deps/**'
   schedule:
     - cron: '0 6 * * 1'
 
@@ -36,7 +52,7 @@ jobs:
         uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
         with:
           languages: c-cpp
-          queries: +security-and-quality
+          queries: ${{ github.event_name == 'pull_request' && 'security-extended' || '+security-and-quality' }}
           config-file: .github/codeql/codeql-config.yml
 
       - name: Set up Python

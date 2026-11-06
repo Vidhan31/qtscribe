@@ -18,9 +18,64 @@ permissions:
   contents: read
 
 jobs:
+  detect-changes:
+    name: Detect Changed Files
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      cpp: ${{ steps.filter.outputs.cpp }}
+      qml: ${{ steps.filter.outputs.qml }}
+      packaging: ${{ steps.filter.outputs.packaging }}
+      workflows_scripts: ${{ steps.filter.outputs.workflows_scripts }}
+      version: ${{ steps.filter.outputs.version }}
+      changelog: ${{ steps.filter.outputs.changelog }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Detect file changes
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            cpp:
+              - 'src/**/*.{cpp,h}'
+              - 'tests/**'
+              - 'cmake/**'
+              - 'CMakeLists.txt'
+              - 'CMakePresets.json'
+            qml:
+              - 'src/ui/**/*.qml'
+              - 'src/ui/CMakeLists.txt'
+            packaging:
+              - 'packaging/**'
+              - 'scripts/ci/**'
+              - 'CMakeLists.txt'
+              - 'CMakePresets.json'
+            workflows_scripts:
+              - '.github/**'
+              - 'packaging/**/*.sh'
+              - 'packaging/**/PKGBUILD'
+              - 'packaging/**/qtscribe.install'
+              - 'packaging/**/qtscribe.spec'
+              - 'packaging/**/postinst'
+              - 'packaging/**/prerm'
+              - 'packaging/**/postrm'
+              - 'scripts/**'
+            version:
+              - 'VERSION'
+            changelog:
+              - 'CHANGELOG.md'
+
   validate-version:
     name: Validate VERSION File (Semantic Versioning)
     runs-on: ubuntu-24.04
+    needs: [detect-changes]
+    if: github.event_name != 'pull_request' || needs.detect-changes.outputs.version == 'true'
     permissions:
       contents: read
     steps:
@@ -43,6 +98,8 @@ jobs:
   validate-changelog:
     name: Validate CHANGELOG.md (Keep a Changelog)
     runs-on: ubuntu-24.04
+    needs: [detect-changes]
+    if: github.event_name != 'pull_request' || needs.detect-changes.outputs.changelog == 'true'
     permissions:
       contents: read
     steps:
@@ -73,16 +130,6 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install Qt 6.11.1
-        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
-        with:
-          version: '6.11.1'
-          arch: 'linux_gcc_64'
-          modules: 'qtmultimedia'
-          cache: true
-          setup-python: false
-          aqtversion: '==3.3.0'
-
       - name: Install pre-commit and clang-format
         run: pip install pre-commit clang-format==22.1.8
 
@@ -101,6 +148,8 @@ jobs:
   lint-workflows-and-scripts:
     name: Lint Workflows & Scripts (zizmor, hadolint, shellcheck)
     runs-on: ubuntu-24.04
+    needs: [detect-changes]
+    if: github.event_name != 'pull_request' || needs.detect-changes.outputs.workflows_scripts == 'true'
     permissions:
       contents: read
     steps:
@@ -151,6 +200,8 @@ jobs:
   lint-qml:
     name: QML Linting & AOT Verification (qmllint & aotstats)
     runs-on: ubuntu-24.04
+    needs: [detect-changes]
+    if: github.event_name != 'pull_request' || needs.detect-changes.outputs.qml == 'true' || needs.detect-changes.outputs.cpp == 'true'
     permissions:
       contents: read
     steps:
@@ -215,6 +266,8 @@ jobs:
   analyze:
     name: Static Analysis (clang-tidy)
     runs-on: ubuntu-24.04
+    needs: [detect-changes]
+    if: github.event_name != 'pull_request' || needs.detect-changes.outputs.cpp == 'true'
     permissions:
       contents: read
     steps:
@@ -272,6 +325,8 @@ jobs:
   sanitizers:
     name: Sanitizers (${{ matrix.name }})
     runs-on: ubuntu-24.04
+    needs: [detect-changes]
+    if: github.event_name != 'pull_request' || needs.detect-changes.outputs.cpp == 'true'
     permissions:
       contents: read
     strategy:
@@ -335,6 +390,8 @@ jobs:
   build-and-test:
     name: Build & Package Validation (Ubuntu 24.04 / Qt 6.11)
     runs-on: ubuntu-24.04
+    needs: [detect-changes]
+    if: github.event_name != 'pull_request' || needs.detect-changes.outputs.packaging == 'true'
     permissions:
       contents: read
     steps:
@@ -354,7 +411,7 @@ jobs:
           target: export
           outputs: type=local,dest=./dist/deb
           cache-from: type=gha,scope=ci-deb-build
-          cache-to: type=gha,mode=max,scope=ci-deb-build
+          cache-to: type=gha,mode=min,scope=ci-deb-build
 
       - name: Verify Debian package artifact output
         run: |
