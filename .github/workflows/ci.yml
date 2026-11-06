@@ -4,10 +4,14 @@ on:
   push:
     branches:
       - main
+    tags:
+      - 'v*.*.*'
+      - 'v*'
   pull_request:
     branches:
       - main
   workflow_dispatch:
+  workflow_call:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -73,7 +77,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install Qt 6.11.1
-        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
         with:
           version: '6.11.1'
           arch: 'linux_gcc_64'
@@ -163,7 +167,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install Qt 6.11.1
-        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
         with:
           version: '6.11.1'
           arch: 'linux_gcc_64'
@@ -173,19 +177,15 @@ jobs:
           aqtversion: '==3.3.0'
 
       - name: Install build dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y --no-install-recommends \
-            ninja-build \
-            pkg-config \
-            libwayland-dev \
-            wayland-protocols \
-            qtkeychain-qt6-dev \
-            libsecret-1-dev \
-            libevdev-dev \
-            libcap-dev \
-            libasound2-dev \
-            libpulse-dev
+        uses: ./.github/actions/setup-build-deps
+
+      - name: Cache compiler objects
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ccache
+          key: ccache-${{ runner.os }}-lint-qml-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-lint-qml-
 
       - name: Configure CMake
         run: |
@@ -204,9 +204,10 @@ jobs:
           cmake --build build --target all_aotstats
           test -f build/.rcc/qmlcache/all_aotstats.txt
           cp build/.rcc/qmlcache/all_aotstats.txt build/all_aotstats.txt
+          ccache --show-stats
 
       - name: Upload QML AOT stats artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: qml-aotstats
           path: build/all_aotstats.txt
@@ -229,7 +230,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install Qt 6.11.1
-        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
         with:
           version: '6.11.1'
           arch: 'linux_gcc_64'
@@ -239,21 +240,17 @@ jobs:
           aqtversion: '==3.3.0'
 
       - name: Install Clang, Clang-Tidy and Build Tools
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y --no-install-recommends \
-            clang-18 \
-            clang-tidy-18 \
-            ninja-build \
-            pkg-config \
-            libwayland-dev \
-            wayland-protocols \
-            qtkeychain-qt6-dev \
-            libsecret-1-dev \
-            libevdev-dev \
-            libcap-dev \
-            libasound2-dev \
-            libpulse-dev
+        uses: ./.github/actions/setup-build-deps
+        with:
+          extra-packages: "clang-18 clang-tidy-18"
+
+      - name: Cache compiler objects
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ccache
+          key: ccache-${{ runner.os }}-clang-tidy-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-clang-tidy-
 
       - name: Configure CMake with Clang and Clang-Tidy
         run: |
@@ -270,6 +267,7 @@ jobs:
       - name: Run Clang-Tidy on first-party targets
         run: |
           ninja -C build qtscribe_core keyinjectord qtscribe
+          ccache --show-stats
 
   sanitizers:
     name: Sanitizers (${{ matrix.name }})
@@ -296,7 +294,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install Qt 6.11.1
-        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
         with:
           version: '6.11.1'
           arch: 'linux_gcc_64'
@@ -306,23 +304,9 @@ jobs:
           aqtversion: '==3.3.0'
 
       - name: Install build dependencies and sanitizer runtime libraries
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y --no-install-recommends \
-            ninja-build \
-            ccache \
-            pkg-config \
-            libwayland-dev \
-            wayland-protocols \
-            qtkeychain-qt6-dev \
-            libsecret-1-dev \
-            libevdev-dev \
-            libcap-dev \
-            libasound2-dev \
-            libpulse-dev \
-            libasan8 \
-            libubsan1 \
-            libtsan2
+        uses: ./.github/actions/setup-build-deps
+        with:
+          extra-packages: "libasan8 libubsan1 libtsan2"
 
       - name: Cache compiler objects
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -341,6 +325,7 @@ jobs:
       - name: Build targets under ${{ matrix.name }}
         run: |
           cmake --build --preset ${{ matrix.preset }}
+          ccache --show-stats
 
       - name: Run test suite under ${{ matrix.name }}
         run: |
@@ -361,7 +346,7 @@ jobs:
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       - name: Build & Validate Debian Package
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: packaging/deb/Dockerfile.deb

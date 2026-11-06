@@ -107,7 +107,7 @@ jobs:
 
       - name: Check whisper.cpp latest tag
         run: |
-          PINNED="v1.9.3"
+          PINNED="v1.9.5"
           LATEST=$(curl -fsSL https://api.github.com/repos/ggml-org/whisper.cpp/releases/latest | python3 -c "import sys,json; print(json.load(sys.stdin)['tag_name'])")
           echo "Pinned : ${PINNED}"
           echo "Latest : ${LATEST}"

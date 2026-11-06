@@ -10,7 +10,7 @@ URL:            https://github.com/Vidhan31/qtscribe
 Source0:        %{name}-%{version}.tar.gz
 
 BuildRequires:  gcc-c++
-BuildRequires:  cmake >= 3.25
+BuildRequires:  cmake >= 3.28
 BuildRequires:  ninja-build
 BuildRequires:  desktop-file-utils
 BuildRequires:  libappstream-glib

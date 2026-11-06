@@ -1,7 +1,7 @@
 # See https://pre-commit.com for more information
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
+    rev: v5.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -10,6 +10,12 @@ repos:
       - id: check-merge-conflict
       - id: check-added-large-files
         args: ['--maxkb=1000']
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.5.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
 
   - repo: local
     hooks:
@@ -31,8 +37,16 @@ repos:
 
       - id: qmllint
         name: QML Linting (qmllint)
-        description: Verify QML files against qmllint rules. Skipped when no build directory exists (e.g. CI pre-build).
-        entry: bash -c 'if [ ! -d build ] && [ ! -d build-release ] && [ ! -d build-relwithdebinfo ]; then exit 0; fi; if command -v qmllint >/dev/null 2>&1; then exec qmllint -I build -I build-release -I build-relwithdebinfo "$@"; else exec qmllint-qt6 -I build -I build-release -I build-relwithdebinfo "$@"; fi' --
+        description: Verify QML files against qmllint rules. Prefers $QT_ROOT_DIR/bin to match the pinned Qt version.
+        entry: bash -c 'if [ ! -d build ] && [ ! -d build-release ] && [ ! -d build-relwithdebinfo ]; then exit 0; fi; QMLLINT=""; if [ -n "${QT_ROOT_DIR}" ] && [ -x "${QT_ROOT_DIR}/bin/qmllint" ]; then QMLLINT="${QT_ROOT_DIR}/bin/qmllint"; elif [ -x "$HOME/Qt/6.11.1/gcc_64/bin/qmllint" ]; then QMLLINT="$HOME/Qt/6.11.1/gcc_64/bin/qmllint"; elif command -v qmllint >/dev/null 2>&1; then QMLLINT="qmllint"; else QMLLINT="qmllint-qt6"; fi; exec "${QMLLINT}" -I build -I build-release -I build-relwithdebinfo "$@"' --
         language: system
         files: ^src/ui/.*\.qml$
         types: [file]
+
+      - id: qml-aot-check
+        name: QML AOT Compilation Check (local build)
+        description: Check if QML files maintain 100% AOT compilation (skipped if no build dir)
+        entry: bash scripts/ci/check-aot-stats.sh
+        language: system
+        files: ^src/ui/.*\.qml$
+        pass_filenames: false
