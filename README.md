@@ -249,6 +249,16 @@ If Qt lives outside the default path, point CMake at it:
 cmake --preset linux-qt6-debug -DCMAKE_PREFIX_PATH="$QT_DIR;/usr/lib/x86_64-linux-gnu"
 ```
 
+#### Vulkan GPU acceleration
+
+Vulkan GPU acceleration is disabled by default (`ENABLE_VULKAN=OFF`) to eliminate shader regeneration overhead during development. Official release packages (Debian, Arch, RPM) build with Vulkan acceleration enabled.
+
+To enable Vulkan GPU acceleration in a local build:
+
+```bash
+cmake --preset linux-qt6-debug -DENABLE_VULKAN=ON
+```
+
 #### Offline or air-gapped builds
 
 CMake downloads whisper.cpp during configure. For a machine without network access, clone the pinned commit first and pass its path to CMake:

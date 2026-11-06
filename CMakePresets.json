@@ -13,7 +13,8 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_PREFIX_PATH": "$env{QT_DIR};$env{CMAKE_PREFIX_PATH}",
-                "BUILD_KEYINJECTORD": "ON"
+                "BUILD_KEYINJECTORD": "ON",
+                "ENABLE_VULKAN": "OFF"
             },
             "environment": {
                 "QT_QPA_PLATFORM": "wayland"
@@ -27,7 +28,8 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release",
                 "CMAKE_PREFIX_PATH": "$env{QT_DIR};$env{CMAKE_PREFIX_PATH}",
-                "BUILD_KEYINJECTORD": "ON"
+                "BUILD_KEYINJECTORD": "ON",
+                "ENABLE_VULKAN": "OFF"
             },
             "environment": {
                 "QT_QPA_PLATFORM": "wayland"
@@ -41,7 +43,8 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "RelWithDebInfo",
                 "CMAKE_PREFIX_PATH": "$env{QT_DIR};$env{CMAKE_PREFIX_PATH}",
-                "BUILD_KEYINJECTORD": "ON"
+                "BUILD_KEYINJECTORD": "ON",
+                "ENABLE_VULKAN": "OFF"
             },
             "environment": {
                 "QT_QPA_PLATFORM": "wayland"
@@ -56,7 +59,8 @@
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_PREFIX_PATH": "$env{QT_DIR};$env{CMAKE_PREFIX_PATH}",
                 "BUILD_KEYINJECTORD": "ON",
-                "ENABLE_ASAN_UBSAN": "ON"
+                "ENABLE_ASAN_UBSAN": "ON",
+                "ENABLE_VULKAN": "OFF"
             },
             "environment": {
                 "QT_QPA_PLATFORM": "offscreen",
@@ -74,7 +78,8 @@
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_PREFIX_PATH": "$env{QT_DIR};$env{CMAKE_PREFIX_PATH}",
                 "BUILD_KEYINJECTORD": "ON",
-                "ENABLE_TSAN": "ON"
+                "ENABLE_TSAN": "ON",
+                "ENABLE_VULKAN": "OFF"
             },
             "environment": {
                 "QT_QPA_PLATFORM": "offscreen",
@@ -90,7 +95,8 @@
                 "CMAKE_BUILD_TYPE": "Debug",
                 "CMAKE_PREFIX_PATH": "$env{QT_DIR};$env{CMAKE_PREFIX_PATH}",
                 "BUILD_KEYINJECTORD": "ON",
-                "ENABLE_COVERAGE": "ON"
+                "ENABLE_COVERAGE": "ON",
+                "ENABLE_VULKAN": "OFF"
             },
             "environment": {
                 "QT_QPA_PLATFORM": "offscreen"

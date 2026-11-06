@@ -49,6 +49,7 @@ build() {
     -D CMAKE_INSTALL_PREFIX=/usr
     -D ENABLE_QT_DEPLOYMENT=OFF
     -D BUILD_KEYINJECTORD=ON
+    -D ENABLE_VULKAN=ON
     -D FETCHCONTENT_SOURCE_DIR_WHISPER=/opt/whisper-src
   )
   cmake "${cmake_options[@]}"
