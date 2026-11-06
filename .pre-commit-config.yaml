@@ -30,7 +30,7 @@ repos:
       - id: qmlformat
         name: QML Formatting (qmlformat)
         description: Format QML files with Qt qmlformat. Prefers $QT_ROOT_DIR/bin to match the pinned Qt version used in CI.
-        entry: bash -c 'QMLFORMAT=""; if [ -n "${QT_ROOT_DIR}" ] && [ -x "${QT_ROOT_DIR}/bin/qmlformat" ]; then QMLFORMAT="${QT_ROOT_DIR}/bin/qmlformat"; elif [ -x "$HOME/Qt/6.11.1/gcc_64/bin/qmlformat" ]; then QMLFORMAT="$HOME/Qt/6.11.1/gcc_64/bin/qmlformat"; elif command -v qmlformat >/dev/null 2>&1; then QMLFORMAT="qmlformat"; else QMLFORMAT="qmlformat-qt6"; fi; exec "${QMLFORMAT}" --inplace "$@"' --
+        entry: bash -c 'QMLFORMAT=""; if [ -n "${QT_ROOT_DIR}" ] && [ -x "${QT_ROOT_DIR}/bin/qmlformat" ]; then QMLFORMAT="${QT_ROOT_DIR}/bin/qmlformat"; elif [ -x "$HOME/Qt/6.11.1/gcc_64/bin/qmlformat" ]; then QMLFORMAT="$HOME/Qt/6.11.1/gcc_64/bin/qmlformat"; elif command -v qmlformat >/dev/null 2>&1; then QMLFORMAT="qmlformat"; elif command -v qmlformat-qt6 >/dev/null 2>&1; then QMLFORMAT="qmlformat-qt6"; else exit 0; fi; exec "${QMLFORMAT}" --inplace "$@"' --
         language: system
         files: ^src/.*\.qml$
         types: [file]

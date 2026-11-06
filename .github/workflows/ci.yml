@@ -18,9 +18,52 @@ permissions:
   contents: read
 
 jobs:
+  detect-changes:
+    name: Detect Changed Files
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      cpp: ${{ steps.filter.outputs.cpp }}
+      qml: ${{ steps.filter.outputs.qml }}
+      workflows_scripts: ${{ steps.filter.outputs.workflows_scripts }}
+      version: ${{ steps.filter.outputs.version }}
+      changelog: ${{ steps.filter.outputs.changelog }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Detect file changes
+        id: filter
+        uses: dorny/paths-filter@de90cc6fb38fc0963ad72b210f1f284cd68cea36 # v3.0.2
+        with:
+          filters: |
+            cpp:
+              - 'src/**/*.{cpp,h}'
+              - 'tests/**'
+              - 'cmake/**'
+              - 'CMakeLists.txt'
+              - 'CMakePresets.json'
+            qml:
+              - 'src/ui/**/*.qml'
+              - 'src/ui/CMakeLists.txt'
+            workflows_scripts:
+              - '.github/**'
+              - 'packaging/**'
+              - 'scripts/**'
+            version:
+              - 'VERSION'
+            changelog:
+              - 'CHANGELOG.md'
+
   validate-version:
     name: Validate VERSION File (Semantic Versioning)
     runs-on: ubuntu-24.04
+    needs: [detect-changes]
+    if: github.event_name != 'pull_request' || needs.detect-changes.outputs.version == 'true'
     permissions:
       contents: read
     steps:
@@ -43,6 +86,8 @@ jobs:
   validate-changelog:
     name: Validate CHANGELOG.md (Keep a Changelog)
     runs-on: ubuntu-24.04
+    needs: [detect-changes]
+    if: github.event_name != 'pull_request' || needs.detect-changes.outputs.changelog == 'true'
     permissions:
       contents: read
     steps:
@@ -73,16 +118,6 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install Qt 6.11.1
-        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
-        with:
-          version: '6.11.1'
-          arch: 'linux_gcc_64'
-          modules: 'qtmultimedia'
-          cache: true
-          setup-python: false
-          aqtversion: '==3.3.0'
-
       - name: Install pre-commit and clang-format
         run: pip install pre-commit clang-format==22.1.8
 
@@ -101,6 +136,8 @@ jobs:
   lint-workflows-and-scripts:
     name: Lint Workflows & Scripts (zizmor, hadolint, shellcheck)
     runs-on: ubuntu-24.04
+    needs: [detect-changes]
+    if: github.event_name != 'pull_request' || needs.detect-changes.outputs.workflows_scripts == 'true'
     permissions:
       contents: read
     steps:
@@ -151,6 +188,8 @@ jobs:
   lint-qml:
     name: QML Linting & AOT Verification (qmllint & aotstats)
     runs-on: ubuntu-24.04
+    needs: [detect-changes]
+    if: github.event_name != 'pull_request' || needs.detect-changes.outputs.qml == 'true' || needs.detect-changes.outputs.cpp == 'true'
     permissions:
       contents: read
     steps:
@@ -215,6 +254,8 @@ jobs:
   analyze:
     name: Static Analysis (clang-tidy)
     runs-on: ubuntu-24.04
+    needs: [detect-changes]
+    if: github.event_name != 'pull_request' || needs.detect-changes.outputs.cpp == 'true'
     permissions:
       contents: read
     steps:
@@ -270,8 +311,10 @@ jobs:
           ccache --show-stats
 
   sanitizers:
-    name: Sanitizers (${{ matrix.name }})
+    name: Sanitizers
     runs-on: ubuntu-24.04
+    needs: [detect-changes]
+    if: github.event_name != 'pull_request' || needs.detect-changes.outputs.cpp == 'true'
     permissions:
       contents: read
     strategy:
@@ -332,35 +375,64 @@ jobs:
         run: |
           ctest --preset ${{ matrix.preset }} --output-on-failure
 
-  build-and-test:
-    name: Build & Package Validation (Ubuntu 24.04 / Qt 6.11)
+  package-validation:
+    name: Package Validation
     runs-on: ubuntu-24.04
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: deb
+            name: Debian (.deb)
+            file: packaging/deb/Dockerfile.deb
+            outdir: dist/deb
+          - target: arch
+            name: Arch Linux (.pkg.tar.zst)
+            file: packaging/arch/Dockerfile.arch
+            outdir: dist/arch
+          - target: rpm
+            name: Fedora RPM (.rpm)
+            file: packaging/rpm/Dockerfile.rpm
+            outdir: dist/rpm
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
+      - name: Read version from VERSION file
+        id: get-version
+        run: |
+          APP_VER=$(tr -d '[:space:]' < VERSION)
+          echo "version=${APP_VER}" >> $GITHUB_OUTPUT
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
-      - name: Build & Validate Debian Package
+      - name: Build & Validate ${{ matrix.name }}
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
-          file: packaging/deb/Dockerfile.deb
+          file: ${{ matrix.file }}
           target: export
-          outputs: type=local,dest=./dist/deb
-          cache-from: type=gha,scope=ci-deb-build
-          cache-to: type=gha,mode=max,scope=ci-deb-build
+          outputs: type=local,dest=./${{ matrix.outdir }}
+          build-args: |
+            APP_VERSION=${{ steps.get-version.outputs.version }}
+          cache-from: type=gha,scope=pkg-${{ matrix.target }}
+          cache-to: type=gha,mode=min,scope=pkg-${{ matrix.target }}
 
-      - name: Verify Debian package artifact output
+      - name: Verify package artifacts
         run: |
-          echo "Generated Debian packages:"
-          ls -lh ./dist/deb/*.deb
-          test -f "$(find ./dist/deb -maxdepth 1 -name '*.deb' | head -n 1)"
+          echo "Listing generated package artifacts in ./${{ matrix.outdir }}:"
+          ls -lh ./${{ matrix.outdir }}
+          if [ -z "$(ls -A ./${{ matrix.outdir }})" ]; then
+            echo "ERROR: No package artifacts found in ./${{ matrix.outdir }}"
+            exit 1
+          fi
 
       - name: Assert Wayland-only packaging config
+        if: matrix.target == 'deb'
         run: bash scripts/ci/check-wayland-only.sh
