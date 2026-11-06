@@ -374,3 +374,65 @@ jobs:
       - name: Run test suite under ${{ matrix.name }}
         run: |
           ctest --preset ${{ matrix.preset }} --output-on-failure
+
+  package-validation:
+    name: Package Validation (${{ matrix.name }})
+    runs-on: ubuntu-24.04
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: deb
+            name: Debian (.deb)
+            file: packaging/deb/Dockerfile.deb
+            outdir: dist/deb
+          - target: arch
+            name: Arch Linux (.pkg.tar.zst)
+            file: packaging/arch/Dockerfile.arch
+            outdir: dist/arch
+          - target: rpm
+            name: Fedora RPM (.rpm)
+            file: packaging/rpm/Dockerfile.rpm
+            outdir: dist/rpm
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read version from VERSION file
+        id: get-version
+        run: |
+          APP_VER=$(tr -d '[:space:]' < VERSION)
+          echo "version=${APP_VER}" >> $GITHUB_OUTPUT
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Build & Validate ${{ matrix.name }}
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          target: export
+          outputs: type=local,dest=./${{ matrix.outdir }}
+          build-args: |
+            APP_VERSION=${{ steps.get-version.outputs.version }}
+          cache-from: type=gha,scope=pkg-${{ matrix.target }}
+          cache-to: type=gha,mode=min,scope=pkg-${{ matrix.target }}
+
+      - name: Verify package artifacts
+        run: |
+          echo "Listing generated package artifacts in ./${{ matrix.outdir }}:"
+          ls -lh ./${{ matrix.outdir }}
+          if [ -z "$(ls -A ./${{ matrix.outdir }})" ]; then
+            echo "ERROR: No package artifacts found in ./${{ matrix.outdir }}"
+            exit 1
+          fi
+
+      - name: Assert Wayland-only packaging config
+        if: matrix.target == 'deb'
+        run: bash scripts/ci/check-wayland-only.sh
