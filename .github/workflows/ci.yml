@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - main
-    tags:
-      - 'v*.*.*'
-      - 'v*'
   pull_request:
     branches:
       - main
@@ -90,6 +87,7 @@ jobs:
         run: pip install pre-commit clang-format==22.1.8
 
       - name: Cache pre-commit environments
+        # zizmor: ignore[cache-poisoning]
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pre-commit
@@ -180,6 +178,7 @@ jobs:
         uses: ./.github/actions/setup-build-deps
 
       - name: Cache compiler objects
+        # zizmor: ignore[cache-poisoning]
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ccache
@@ -245,6 +244,7 @@ jobs:
           extra-packages: "clang-18 clang-tidy-18"
 
       - name: Cache compiler objects
+        # zizmor: ignore[cache-poisoning]
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ccache
@@ -309,6 +309,7 @@ jobs:
           extra-packages: "libasan8 libubsan1 libtsan2"
 
       - name: Cache compiler objects
+        # zizmor: ignore[cache-poisoning]
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ccache

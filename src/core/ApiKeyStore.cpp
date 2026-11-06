@@ -86,7 +86,7 @@ QString ApiKeyStore::settingsKey() const {
 
 void ApiKeyStore::loadApiKeyFromKeychain() {
     setIsLoading(true);
-    auto* readJob = new QKeychain::ReadPasswordJob(m_keychainService, this);
+    auto* readJob = new QKeychain::ReadPasswordJob(m_keychainService);
     readJob->setKey(m_keychainKey);
     readJob->setAutoDelete(true);
 
@@ -139,7 +139,7 @@ void ApiKeyStore::loadApiKeyFromSettingsFallback() {
 }
 
 void ApiKeyStore::saveApiKeyToKeychain(const QString& key) {
-    auto* writeJob = new QKeychain::WritePasswordJob(m_keychainService, this);
+    auto* writeJob = new QKeychain::WritePasswordJob(m_keychainService);
     writeJob->setKey(m_keychainKey);
     writeJob->setTextData(key);
     writeJob->setAutoDelete(true);
@@ -170,7 +170,7 @@ void ApiKeyStore::deleteApiKeyFromKeychain() {
         settings.remove(kLegacySettingsApiKey.toString());
     }
 
-    auto* deleteJob = new QKeychain::DeletePasswordJob(m_keychainService, this);
+    auto* deleteJob = new QKeychain::DeletePasswordJob(m_keychainService);
     deleteJob->setKey(m_keychainKey);
     deleteJob->setAutoDelete(true);
 

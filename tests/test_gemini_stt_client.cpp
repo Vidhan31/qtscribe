@@ -201,7 +201,7 @@ private slots:
 
         auto* mockNam = new MockNetworkAccessManager(&client);
         mockNam->nextStatusCode = 429;
-        mockNam->nextHeaders.append({QByteArray("retry-after"), QByteArray("3")});
+        mockNam->nextHeaders.append({QByteArray("retry-after"), QByteArray("10")});
         mockNam->nextResponseData = R"({"error": {"message": "Resource has been exhausted (e.g. check quota)."}})";
         client.setNetworkAccessManager(mockNam);
 
@@ -211,7 +211,7 @@ private slots:
         client.transcribe(QByteArray("RIFFfakeWavData"));
 
         QTRY_VERIFY(client.isRateLimited());
-        QCOMPARE(client.retrySecondsRemaining(), 3);
+        QCOMPARE(client.retrySecondsRemaining(), 10);
         QCOMPARE(client.errorCategory(), AbstractSttClient::ErrorCategory::RateLimited);
         QVERIFY(errorSpy.count() >= 1);
     }

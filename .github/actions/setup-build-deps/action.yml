@@ -10,6 +10,8 @@ runs:
   steps:
     - name: Install APT dependencies
       shell: bash
+      env:
+        EXTRA_PACKAGES: ${{ inputs.extra-packages }}
       run: |
         sudo apt-get update -y
         # shellcheck disable=SC2086
@@ -25,4 +27,4 @@ runs:
           libcap-dev \
           libasound2-dev \
           libpulse-dev \
-          ${{ inputs.extra-packages }}
+          $EXTRA_PACKAGES
