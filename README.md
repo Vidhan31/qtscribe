@@ -184,7 +184,7 @@ Open **Settings** in QtScribe:
 
 Qt 6.11.1 is required. Ubuntu 24.04 ships an older system Qt, so install Qt 6.11.1 from the Qt Online installer or with aqtinstall. CMake picks up `~/Qt/6.11.1/gcc_64` on its own. For a custom path, export `QT_DIR` or pass `-DCMAKE_PREFIX_PATH` when you configure.
 
-Pinned third party versions are whisper.cpp v1.9.3 at commit `371b5a7` and QtKeychain 0.17.0 at commit `875f77d`. CMake fetches whisper.cpp for you. Packaging builds QtKeychain from source. Local builds can use the distro package instead.
+Pinned third party versions are whisper.cpp v1.9.5 at commit `d1be6fd` and QtKeychain 0.17.0 at commit `875f77d`. CMake fetches whisper.cpp for you. Packaging builds QtKeychain from source. Local builds can use the distro package instead.
 
 ### Prerequisites
 
@@ -247,6 +247,16 @@ If Qt lives outside the default path, point CMake at it:
 
 ```bash
 cmake --preset linux-qt6-debug -DCMAKE_PREFIX_PATH="$QT_DIR;/usr/lib/x86_64-linux-gnu"
+```
+
+#### Vulkan GPU acceleration
+
+Vulkan GPU acceleration is disabled by default (`ENABLE_VULKAN=OFF`) to eliminate shader regeneration overhead during development. Official release packages (Debian, Arch, RPM) build with Vulkan acceleration enabled.
+
+To enable Vulkan GPU acceleration in a local build:
+
+```bash
+cmake --preset linux-qt6-debug -DENABLE_VULKAN=ON
 ```
 
 #### Offline or air-gapped builds

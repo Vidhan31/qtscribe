@@ -33,7 +33,7 @@ jobs:
           persist-credentials: false
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
+        uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
         with:
           languages: c-cpp
           queries: +security-and-quality
@@ -45,7 +45,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install Qt 6.11.1
-        uses: jurplel/install-qt-action@48d3ad6db93f3627c8ee7a0454bc6f3744f7e730 # v4.3.1
+        uses: jurplel/install-qt-action@a9c63c7c123f3069cff414e7e482d95dfa9d8125 # v4.4.1
         with:
           version: '6.11.1'
           arch: 'linux_gcc_64'
@@ -55,19 +55,7 @@ jobs:
           aqtversion: '==3.3.0'
 
       - name: Install build dependencies
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y --no-install-recommends \
-            ninja-build \
-            pkg-config \
-            libwayland-dev \
-            wayland-protocols \
-            qtkeychain-qt6-dev \
-            libsecret-1-dev \
-            libevdev-dev \
-            libcap-dev \
-            libasound2-dev \
-            libpulse-dev
+        uses: ./.github/actions/setup-build-deps
 
       - name: Configure CMake
         run: |
@@ -83,6 +71,6 @@ jobs:
           ninja -C build qtscribe_core keyinjectord qtscribe
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@b96794f015dfd88f77b49b1c93e0fa7110f94c63 # v4.38.0
+        uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
         with:
           category: "/language:c-cpp"

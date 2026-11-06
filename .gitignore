@@ -1,5 +1,8 @@
 # Prerequisites
 *.d
+*.gcov
+*.gcda
+*.gcno
 
 # Compiled Object files
 *.slo

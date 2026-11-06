@@ -10,7 +10,7 @@ URL:            https://github.com/Vidhan31/qtscribe
 Source0:        %{name}-%{version}.tar.gz
 
 BuildRequires:  gcc-c++
-BuildRequires:  cmake >= 3.25
+BuildRequires:  cmake >= 3.28
 BuildRequires:  ninja-build
 BuildRequires:  desktop-file-utils
 BuildRequires:  libappstream-glib
@@ -49,6 +49,7 @@ and seamless desktop integration on Wayland environments (Plasma 6+, GNOME 49+).
 %build
 %cmake -G Ninja \
     -DENABLE_QT_DEPLOYMENT=OFF \
+    -DENABLE_VULKAN=ON \
     -DFETCHCONTENT_SOURCE_DIR_WHISPER=/opt/whisper-src \
     -DCMAKE_BUILD_TYPE=Release
 %cmake_build

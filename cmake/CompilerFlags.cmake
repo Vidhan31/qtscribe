@@ -39,6 +39,18 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang
         target_compile_options(qtscribe_compiler_flags INTERFACE -fstack-protector-strong)
     endif()
 
+    # OpenSSF: Stack clash protection
+    check_compiler_flag(CXX "-fstack-clash-protection" QTSCRIBE_HAS_STACK_CLASH_PROTECTION)
+    if(QTSCRIBE_HAS_STACK_CLASH_PROTECTION)
+        target_compile_options(qtscribe_compiler_flags INTERFACE -fstack-clash-protection)
+    endif()
+
+    # OpenSSF: Control-flow integrity / Intel CET (x86_64)
+    check_compiler_flag(CXX "-fcf-protection=full" QTSCRIBE_HAS_CF_PROTECTION)
+    if(QTSCRIBE_HAS_CF_PROTECTION)
+        target_compile_options(qtscribe_compiler_flags INTERFACE -fcf-protection=full)
+    endif()
+
     # OpenSSF: Position Independent Executables (PIE).
     # Only -pie at link time. Never add -fPIE here: on current GCC -fPIE
     # enables direct-extern-access codegen, emitting direct PC32 accesses
@@ -119,4 +131,8 @@ endif()
 
 if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/Sanitizers.cmake")
     include("${CMAKE_CURRENT_LIST_DIR}/Sanitizers.cmake")
+endif()
+
+if(EXISTS "${CMAKE_CURRENT_LIST_DIR}/Coverage.cmake")
+    include("${CMAKE_CURRENT_LIST_DIR}/Coverage.cmake")
 endif()

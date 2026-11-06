@@ -41,9 +41,9 @@ RUN useradd -m -s /bin/bash builduser && \
     chmod 0440 /etc/sudoers.d/builduser
 
 # Pre-clone whisper.cpp at pinned commit so CMake does not download it during every build
-# Pinned to v1.9.3 — commit 371b5a7561823ab2bb32142d2751e35e7534727b
+# Pinned to v1.9.5 — commit d1be6fde11ac6e0407606b4e42fe72d34add8037
 RUN git clone https://github.com/ggml-org/whisper.cpp.git /opt/whisper-src && \
-    git -C /opt/whisper-src checkout 371b5a7561823ab2bb32142d2751e35e7534727b && \
+    git -C /opt/whisper-src checkout d1be6fde11ac6e0407606b4e42fe72d34add8037 && \
     chown -R builduser:builduser /opt/whisper-src
 
 WORKDIR /build

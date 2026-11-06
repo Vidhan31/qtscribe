@@ -52,24 +52,32 @@ qt_standard_project_setup(REQUIRES 6.11)
 option(ENABLE_QT_DEPLOYMENT "Enable Qt deployment script generation for standalone bundle packaging" ON)
 option(BUILD_KEYINJECTORD "Build keyinjectord helper daemon" ON)
 option(ENABLE_CPACK_DEB "Configure CPack for Debian (.deb) package generation" OFF)
+option(ENABLE_VULKAN "Enable Vulkan GPU acceleration for whisper.cpp" OFF)
 
 include(cmake/CompilerFlags.cmake)
 include(FetchContent)
 
-find_package(Vulkan QUIET COMPONENTS glslc)
-find_package(SPIRV-Headers QUIET CONFIG)
-if(Vulkan_FOUND AND Vulkan_glslc_FOUND AND SPIRV-Headers_FOUND)
-    message(STATUS "Vulkan SDK, glslc, and SPIRV-Headers found (${Vulkan_VERSION}): enabling Vulkan acceleration for whisper.cpp")
-    set(GGML_VULKAN ON CACHE BOOL "whisper: enable Vulkan backend" FORCE)
-    add_compile_definitions(GGML_USE_VULKAN)
+if(ENABLE_VULKAN)
+    find_package(Vulkan QUIET COMPONENTS glslc)
+    find_package(SPIRV-Headers QUIET CONFIG)
+    if(Vulkan_FOUND AND Vulkan_glslc_FOUND AND SPIRV-Headers_FOUND)
+        message(STATUS "Vulkan SDK, glslc, and SPIRV-Headers found (${Vulkan_VERSION}): enabling Vulkan acceleration for whisper.cpp")
+        set(GGML_VULKAN ON CACHE BOOL "whisper: enable Vulkan backend" FORCE)
+        add_compile_definitions(GGML_USE_VULKAN)
+    else()
+        message(FATAL_ERROR "ENABLE_VULKAN is ON but Vulkan SDK, glslc, or SPIRV-Headers was not found")
+    endif()
 else()
-    message(STATUS "Vulkan SDK, glslc, or SPIRV-Headers not found: building whisper.cpp with CPU inference only")
+    message(STATUS "Vulkan GPU acceleration is disabled (ENABLE_VULKAN=OFF): building whisper.cpp with CPU inference only")
     set(GGML_VULKAN OFF CACHE BOOL "whisper: enable Vulkan backend" FORCE)
 endif()
 
 set(WHISPER_BUILD_EXAMPLES OFF CACHE BOOL "whisper: disable examples" FORCE)
 set(WHISPER_BUILD_TESTS OFF CACHE BOOL "whisper: disable tests" FORCE)
 set(WHISPER_BUILD_SERVER OFF CACHE BOOL "whisper: disable server" FORCE)
+# Scope note: BUILD_SHARED_LIBS is forced to OFF for third-party FetchContent targets
+# (whisper.cpp, ggml) to ensure they link statically. All first-party QtScribe libraries
+# are explicitly declared STATIC in their respective CMakeLists.txt files.
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "whisper: build static libraries" FORCE)
 set(GGML_CCACHE ON CACHE BOOL "ggml: use ccache" FORCE)
 
@@ -80,7 +88,7 @@ set(GGML_CCACHE ON CACHE BOOL "ggml: use ccache" FORCE)
 FetchContent_Declare(
     whisper
     GIT_REPOSITORY https://github.com/ggml-org/whisper.cpp.git
-    GIT_TAG        371b5a7561823ab2bb32142d2751e35e7534727b # v1.9.3
+    GIT_TAG        d1be6fde11ac6e0407606b4e42fe72d34add8037 # v1.9.5
     GIT_SHALLOW    TRUE
     EXCLUDE_FROM_ALL
     SYSTEM
@@ -207,6 +215,11 @@ elseif(TARGET format-cpp)
 elseif(TARGET format-qml)
     add_custom_target(format DEPENDS format-qml)
 endif()
+
+add_custom_target(check-aot
+    COMMAND bash "${CMAKE_CURRENT_SOURCE_DIR}/scripts/ci/check-aot-stats.sh" "${CMAKE_BINARY_DIR}"
+    COMMENT "Validating QML AOT compilation statistics"
+)
 
 include(GNUInstallDirs)
 

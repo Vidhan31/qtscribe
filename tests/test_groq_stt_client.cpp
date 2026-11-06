@@ -1,6 +1,7 @@
 #include "ApiKeyStore.h"
 #include "GroqSttClient.h"
 #include "PresetProvider.h"
+#include "mock_network_access_manager.h"
 
 #include <QCoreApplication>
 #include <QSettings>
@@ -157,8 +158,111 @@ private slots:
         QVERIFY(presets.contains(u"custom"_s));
     }
 
+    void testTranscribeEmptyAudioFailsImmediately() {
+        GroqSttClient client;
+        client.setApiKey(u"gsk_valid_key"_s);
+
+        QSignalSpy errorSpy(&client, &AbstractSttClient::errorOccurred);
+        client.transcribe(QByteArray());
+
+        QCOMPARE(errorSpy.count(), 1);
+        QCOMPARE(errorSpy.first().at(0).toString(), u"No audio data to transcribe"_s);
+    }
+
+    void testTranscribeWithoutApiKeyFails() {
+        GroqSttClient client;
+
+        QSignalSpy errorSpy(&client, &AbstractSttClient::errorOccurred);
+        client.transcribe(QByteArray("RIFFfakeWavData"));
+
+        QCOMPARE(errorSpy.count(), 1);
+        QCOMPARE(errorSpy.first().at(0).toString(), u"Groq API key is not set"_s);
+        QCOMPARE(client.errorCategory(), AbstractSttClient::ErrorCategory::InvalidApiKey);
+        QVERIFY(!client.isApiKeySet());
+        QVERIFY(!client.isReady());
+    }
+
+    void testTranscribeSuccess() {
+        GroqSttClient client;
+        client.setApiKey(u"gsk_valid_key"_s);
+
+        auto* mockNam = new MockNetworkAccessManager(&client);
+        mockNam->nextStatusCode = 200;
+        mockNam->nextResponseData = R"({"text": "Hello world from Groq STT."})";
+        client.setNetworkAccessManager(mockNam);
+
+        QSignalSpy readySpy(&client, &AbstractSttClient::transcriptionReady);
+
+        client.transcribe(QByteArray("RIFFfakeWavData"));
+
+        QTRY_COMPARE(readySpy.count(), 1);
+        QCOMPARE(readySpy.first().at(0).toString(), u"Hello world from Groq STT."_s);
+        QVERIFY(!client.isBusy());
+        QCOMPARE(mockNam->requestCount, 1);
+    }
+
+    void testTranscribeRateLimit429() {
+        GroqSttClient client;
+        client.setApiKey(u"gsk_valid_key"_s);
+
+        auto* mockNam = new MockNetworkAccessManager(&client);
+        mockNam->nextStatusCode = 429;
+        mockNam->nextHeaders.append({QByteArray("retry-after"), QByteArray("10")});
+        mockNam->nextResponseData = R"({"error": {"message": "Rate limit exceeded"}})";
+        client.setNetworkAccessManager(mockNam);
+
+        QSignalSpy errorSpy(&client, &AbstractSttClient::errorOccurred);
+
+        client.transcribe(QByteArray("RIFFfakeWavData"));
+
+        QTRY_VERIFY(client.isRateLimited());
+        QCOMPARE(client.retrySecondsRemaining(), 10);
+        QCOMPARE(client.errorCategory(), AbstractSttClient::ErrorCategory::RateLimited);
+        QVERIFY(errorSpy.count() >= 1);
+    }
+
+    void testTranscribeUnauthorized401() {
+        GroqSttClient client;
+        client.setApiKey(u"gsk_invalid_key"_s);
+
+        auto* mockNam = new MockNetworkAccessManager(&client);
+        mockNam->nextStatusCode = 401;
+        mockNam->nextResponseData = R"({"error": {"message": "Invalid API Key provided"}})";
+        client.setNetworkAccessManager(mockNam);
+
+        QSignalSpy errorSpy(&client, &AbstractSttClient::errorOccurred);
+
+        client.transcribe(QByteArray("RIFFfakeWavData"));
+
+        QTRY_VERIFY(client.isApiKeyInvalid());
+        QCOMPARE(client.errorCategory(), AbstractSttClient::ErrorCategory::InvalidApiKey);
+        QCOMPARE(errorSpy.count(), 1);
+    }
+
+    void testTranscribeEmptyResultFallback() {
+        GroqSttClient client;
+        client.setApiKey(u"gsk_valid_key"_s);
+
+        auto* mockNam = new MockNetworkAccessManager(&client);
+        mockNam->nextStatusCode = 200;
+        mockNam->nextResponseData = R"({"text": ""})";
+        client.setNetworkAccessManager(mockNam);
+
+        QSignalSpy errorSpy(&client, &AbstractSttClient::errorOccurred);
+
+        client.transcribe(QByteArray("RIFFfakeWavData"));
+
+        QTRY_COMPARE(errorSpy.count(), 1);
+        QCOMPARE(errorSpy.first().at(0).toString(), u"Groq API returned empty transcription"_s);
+    }
+
     void testCancelResetsState() {
         GroqSttClient client;
+        client.setApiKey(u"gsk_valid_key"_s);
+
+        auto* mockNam = new MockNetworkAccessManager(&client);
+        client.setNetworkAccessManager(mockNam);
+
         QSignalSpy spyBusy(&client, &GroqSttClient::busyChanged);
 
         client.cancel();

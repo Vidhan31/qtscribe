@@ -14,18 +14,18 @@ public:
     explicit DaemonConnector(QObject* parent = nullptr);
     ~DaemonConnector() override;
 
-    bool isConnected() const;
+    virtual bool isConnected() const;
     bool hasFatalError() const;
     QString fatalErrorMessage() const;
     QString lastError() const;
     QString statusMessage() const;
 
-    bool connectToServer();
+    virtual bool connectToServer();
     void disconnectFromServer();
     void stopDaemon();
     void restartService();
 
-    bool sendCommand(keyinjectord::Opcode opcode, int timeoutMs = 2000);
+    virtual bool sendCommand(keyinjectord::Opcode opcode, int timeoutMs = 2000);
     bool ensureDaemonRunning();
 
 signals:

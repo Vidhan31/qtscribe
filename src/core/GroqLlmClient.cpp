@@ -70,6 +70,16 @@ ApiKeyStore* GroqLlmClient::keyStore() const {
     return m_keyStore;
 }
 
+void GroqLlmClient::setNetworkAccessManager(QNetworkAccessManager* nam) {
+    if (m_nam == nam) {
+        return;
+    }
+    if (m_nam && m_nam->parent() == this) {
+        m_nam->deleteLater();
+    }
+    m_nam = nam;
+}
+
 bool GroqLlmClient::isBusy() const {
     return m_requestRunner.isBusy();
 }

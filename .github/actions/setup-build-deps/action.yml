@@ -1,0 +1,30 @@
+name: "Setup QtScribe Build Dependencies"
+description: "Install common Linux apt build dependencies for QtScribe"
+inputs:
+  extra-packages:
+    description: "Additional packages to install"
+    required: false
+    default: ""
+runs:
+  using: "composite"
+  steps:
+    - name: Install APT dependencies
+      shell: bash
+      env:
+        EXTRA_PACKAGES: ${{ inputs.extra-packages }}
+      run: |
+        sudo apt-get update -y
+        # shellcheck disable=SC2086
+        sudo apt-get install -y --no-install-recommends \
+          ninja-build \
+          ccache \
+          pkg-config \
+          libwayland-dev \
+          wayland-protocols \
+          qtkeychain-qt6-dev \
+          libsecret-1-dev \
+          libevdev-dev \
+          libcap-dev \
+          libasound2-dev \
+          libpulse-dev \
+          $EXTRA_PACKAGES

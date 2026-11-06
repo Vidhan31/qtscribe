@@ -1,5 +1,6 @@
 #include "ApiKeyStore.h"
 #include "GeminiSttClient.h"
+#include "mock_network_access_manager.h"
 
 #include <QCoreApplication>
 #include <QJsonArray>
@@ -127,37 +128,137 @@ private slots:
         QCOMPARE(spyKeyChanged.count(), 1);
     }
 
-    void testExtractTranscribedTextOutputText() {
-        QJsonObject json;
-        json.insert(u"output_text"_s, u"Hello world from Gemini Transcribe."_s);
+    void testTranscribeEmptyAudioFailsImmediately() {
+        GeminiSttClient client;
+        client.setApiKey(u"valid_key"_s);
 
-        QCOMPARE(json.value(u"output_text"_s).toString(), u"Hello world from Gemini Transcribe."_s);
+        QSignalSpy errorSpy(&client, &AbstractSttClient::errorOccurred);
+        client.transcribe(QByteArray());
+
+        QCOMPARE(errorSpy.count(), 1);
+        QCOMPARE(errorSpy.first().at(0).toString(), u"No audio data to transcribe"_s);
+        QCOMPARE(client.lastError(), u"No audio data to transcribe"_s);
     }
 
-    void testExtractTranscribedTextStepsFallback() {
-        QJsonObject json;
-        QJsonArray steps;
-        QJsonObject step;
-        step.insert(u"type"_s, u"model_output"_s);
+    void testTranscribeWithoutApiKeyFails() {
+        GeminiSttClient client;
 
-        QJsonArray content;
-        QJsonObject part;
-        part.insert(u"type"_s, u"text"_s);
-        part.insert(u"text"_s, u"Step text transcription"_s);
-        content.append(part);
+        QSignalSpy errorSpy(&client, &AbstractSttClient::errorOccurred);
+        client.transcribe(QByteArray("fakeAudioPayload"));
 
-        step.insert(u"content"_s, content);
-        steps.append(step);
-        json.insert(u"steps"_s, steps);
+        QCOMPARE(errorSpy.count(), 1);
+        QCOMPARE(errorSpy.first().at(0).toString(), u"Gemini API key is not set"_s);
+        QCOMPARE(client.errorCategory(), AbstractSttClient::ErrorCategory::InvalidApiKey);
+        QVERIFY(!client.isApiKeySet());
+        QVERIFY(!client.isReady());
+    }
 
-        const QJsonArray parsedSteps = json.value(u"steps"_s).toArray();
-        QCOMPARE(parsedSteps.size(), 1);
-        const QJsonObject parsedStep = parsedSteps.at(0).toObject();
-        QCOMPARE(parsedStep.value(u"type"_s).toString(), u"model_output"_s);
+    void testTranscribeSuccessOutputText() {
+        GeminiSttClient client;
+        client.setApiKey(u"valid_gemini_key"_s);
+
+        auto* mockNam = new MockNetworkAccessManager(&client);
+        mockNam->nextStatusCode = 200;
+        mockNam->nextResponseData = R"({"output_text": "Hello world from Gemini Transcribe."})";
+        client.setNetworkAccessManager(mockNam);
+
+        QSignalSpy readySpy(&client, &AbstractSttClient::transcriptionReady);
+        QSignalSpy busySpy(&client, &AbstractSttClient::busyChanged);
+
+        client.transcribe(QByteArray("RIFFfakeWavData"));
+
+        QTRY_COMPARE(readySpy.count(), 1);
+        QCOMPARE(readySpy.first().at(0).toString(), u"Hello world from Gemini Transcribe."_s);
+        QVERIFY(!client.isBusy());
+        QCOMPARE(mockNam->requestCount, 1);
+    }
+
+    void testTranscribeSuccessStepsFallback() {
+        GeminiSttClient client;
+        client.setApiKey(u"valid_gemini_key"_s);
+
+        auto* mockNam = new MockNetworkAccessManager(&client);
+        mockNam->nextStatusCode = 200;
+        mockNam->nextResponseData = R"({
+            "steps": [{
+                "type": "model_output",
+                "content": [{"type": "text", "text": "Step text transcription"}]
+            }]
+        })";
+        client.setNetworkAccessManager(mockNam);
+
+        QSignalSpy readySpy(&client, &AbstractSttClient::transcriptionReady);
+
+        client.transcribe(QByteArray("RIFFfakeWavData"));
+
+        QTRY_COMPARE(readySpy.count(), 1);
+        QCOMPARE(readySpy.first().at(0).toString(), u"Step text transcription"_s);
+    }
+
+    void testTranscribeRateLimit429WithRetryAfter() {
+        GeminiSttClient client;
+        client.setApiKey(u"valid_gemini_key"_s);
+
+        auto* mockNam = new MockNetworkAccessManager(&client);
+        mockNam->nextStatusCode = 429;
+        mockNam->nextHeaders.append({QByteArray("retry-after"), QByteArray("10")});
+        mockNam->nextResponseData = R"({"error": {"message": "Resource has been exhausted (e.g. check quota)."}})";
+        client.setNetworkAccessManager(mockNam);
+
+        QSignalSpy errorSpy(&client, &AbstractSttClient::errorOccurred);
+        QSignalSpy rateSpy(&client, &AbstractSttClient::isRateLimitedChanged);
+
+        client.transcribe(QByteArray("RIFFfakeWavData"));
+
+        QTRY_VERIFY(client.isRateLimited());
+        QCOMPARE(client.retrySecondsRemaining(), 10);
+        QCOMPARE(client.errorCategory(), AbstractSttClient::ErrorCategory::RateLimited);
+        QVERIFY(errorSpy.count() >= 1);
+    }
+
+    void testTranscribeUnauthorized401() {
+        GeminiSttClient client;
+        client.setApiKey(u"invalid_key"_s);
+
+        auto* mockNam = new MockNetworkAccessManager(&client);
+        mockNam->nextStatusCode = 401;
+        mockNam->nextResponseData = R"({"error": {"message": "API key not valid. Please pass a valid API key."}})";
+        client.setNetworkAccessManager(mockNam);
+
+        QSignalSpy keyInvalidSpy(&client, &AbstractSttClient::isApiKeyInvalidChanged);
+        QSignalSpy errorSpy(&client, &AbstractSttClient::errorOccurred);
+
+        client.transcribe(QByteArray("RIFFfakeWavData"));
+
+        QTRY_VERIFY(client.isApiKeyInvalid());
+        QCOMPARE(client.errorCategory(), AbstractSttClient::ErrorCategory::InvalidApiKey);
+        QCOMPARE(errorSpy.count(), 1);
+    }
+
+    void testTranscribeMalformedJsonFallback() {
+        GeminiSttClient client;
+        client.setApiKey(u"valid_gemini_key"_s);
+
+        auto* mockNam = new MockNetworkAccessManager(&client);
+        mockNam->nextStatusCode = 200;
+        mockNam->nextResponseData = "not_valid_json_payload";
+        client.setNetworkAccessManager(mockNam);
+
+        QSignalSpy errorSpy(&client, &AbstractSttClient::errorOccurred);
+
+        client.transcribe(QByteArray("RIFFfakeWavData"));
+
+        QTRY_COMPARE(errorSpy.count(), 1);
+        QCOMPARE(errorSpy.first().at(0).toString(), u"Gemini API returned empty transcription"_s);
     }
 
     void testCancelResetsState() {
         GeminiSttClient client;
+        client.setApiKey(u"valid_gemini_key"_s);
+
+        auto* mockNam = new MockNetworkAccessManager(&client);
+        client.setNetworkAccessManager(mockNam);
+
         QSignalSpy spyBusy(&client, &GeminiSttClient::busyChanged);
 
         client.cancel();
