@@ -1,4 +1,5 @@
 #include <QCoreApplication>
+#include <QSettings>
 #include <QSignalSpy>
 #include <QTest>
 
@@ -78,16 +79,22 @@ private:
 
 void TestCompositeSttEngine::initTestCase() {
     QCoreApplication::setOrganizationName(u"QTranscribeTestOrg"_s);
-    QCoreApplication::setApplicationName(u"QTranscribeTestApp"_s);
+    QCoreApplication::setApplicationName(u"QTranscribeTestApp_CompositeSttEngine"_s);
+    QSettings settings;
+    settings.clear();
 }
 
-void TestCompositeSttEngine::cleanupTestCase() { }
+void TestCompositeSttEngine::cleanupTestCase() {
+    QSettings settings;
+    settings.clear();
+}
 
 void TestCompositeSttEngine::init() {
     m_engine = new CompositeSttEngine(this);
     m_cloudClient = new FakeSttBackend(this);
     m_whisperClient = new FakeSttBackend(this);
     m_healthMonitor = new SystemHealthMonitor(this);
+    m_healthMonitor->setNetworkOnlineForTesting(true);
 
     m_engine->setCloudClient(m_cloudClient);
     m_engine->setWhisperClient(m_whisperClient);

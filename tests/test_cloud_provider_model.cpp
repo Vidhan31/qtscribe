@@ -13,6 +13,7 @@ class TestCloudProviderModel : public QObject {
 
 private slots:
     void initTestCase();
+    void cleanupTestCase();
     void cleanup();
     void testInitialModelPopulation();
     void testActiveProviderProperties();
@@ -22,7 +23,14 @@ private slots:
 
 void TestCloudProviderModel::initTestCase() {
     QCoreApplication::setOrganizationName(u"QTranscribeTestOrg"_s);
-    QCoreApplication::setApplicationName(u"QTranscribeTestApp"_s);
+    QCoreApplication::setApplicationName(u"QTranscribeTestApp_CloudProviderModel"_s);
+    QSettings settings;
+    settings.clear();
+}
+
+void TestCloudProviderModel::cleanupTestCase() {
+    QSettings settings;
+    settings.clear();
 }
 
 void TestCloudProviderModel::cleanup() {

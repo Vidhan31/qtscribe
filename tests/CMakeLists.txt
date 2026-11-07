@@ -80,7 +80,7 @@ function(add_qtscribe_test name)
 
     add_test(NAME ${ctest_name} COMMAND ${target})
     set_tests_properties(${ctest_name} PROPERTIES
-        ENVIRONMENT "${QTSCRIBE_TEST_ENVIRONMENT}"
+        ENVIRONMENT "${QTSCRIBE_TEST_ENVIRONMENT};XDG_CONFIG_HOME=${CMAKE_CURRENT_BINARY_DIR}/test_xdg_config/${ctest_name}"
         TIMEOUT 30
     )
 endfunction()

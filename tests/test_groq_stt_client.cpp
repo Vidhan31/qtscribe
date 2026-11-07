@@ -16,7 +16,7 @@ class TestGroqSttClient : public QObject {
 private slots:
     void initTestCase() {
         QCoreApplication::setOrganizationName(u"QTranscribeTest"_s);
-        QCoreApplication::setApplicationName(u"QTranscribeTest"_s);
+        QCoreApplication::setApplicationName(u"QTranscribeTest_Groq"_s);
     }
 
     void cleanup() {

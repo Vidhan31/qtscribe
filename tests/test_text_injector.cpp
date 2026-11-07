@@ -107,7 +107,9 @@ private:
 
 void TestTextInjector::initTestCase() {
     QCoreApplication::setOrganizationName(u"QTranscribeTestOrg"_s);
-    QCoreApplication::setApplicationName(u"QTranscribeTestApp"_s);
+    QCoreApplication::setApplicationName(u"QTranscribeTestApp_TextInjector"_s);
+    QSettings settings;
+    settings.clear();
 }
 
 void TestTextInjector::cleanupTestCase() {
@@ -116,6 +118,9 @@ void TestTextInjector::cleanupTestCase() {
 }
 
 void TestTextInjector::init() {
+    QSettings settings;
+    settings.clear();
+
     m_connector = new MockDaemonConnector(this);
     m_clipboard = new MockClipboardManager(this);
     m_injector = new TextInjector(m_connector, m_clipboard, this);

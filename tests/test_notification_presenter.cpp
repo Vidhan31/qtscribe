@@ -6,6 +6,7 @@
 #include "NotificationPresenter.h"
 
 #include <QCoreApplication>
+#include <QSettings>
 #include <QSignalSpy>
 #include <QTest>
 
@@ -105,10 +106,15 @@ private:
 
 void TestNotificationPresenter::initTestCase() {
     QCoreApplication::setOrganizationName(u"QTranscribeTestOrg"_s);
-    QCoreApplication::setApplicationName(u"QTranscribeTestApp"_s);
+    QCoreApplication::setApplicationName(u"QTranscribeTestApp_NotificationPresenter"_s);
+    QSettings settings;
+    settings.clear();
 }
 
-void TestNotificationPresenter::cleanupTestCase() { }
+void TestNotificationPresenter::cleanupTestCase() {
+    QSettings settings;
+    settings.clear();
+}
 
 void TestNotificationPresenter::init() {
     m_presenter = new NotificationPresenter(this);

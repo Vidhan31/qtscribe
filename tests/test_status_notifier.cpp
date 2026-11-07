@@ -7,6 +7,7 @@
 #include <QDBusConnection>
 #include <QDBusInterface>
 #include <QDBusReply>
+#include <QSettings>
 #include <QSignalSpy>
 #include <QTest>
 
@@ -54,7 +55,9 @@ void TestStatusNotifier::initTestCase() {
     }
 
     QCoreApplication::setOrganizationName(u"QTranscribeTestOrg"_s);
-    QCoreApplication::setApplicationName(u"QTranscribeTestApp"_s);
+    QCoreApplication::setApplicationName(u"QTranscribeTestApp_StatusNotifier"_s);
+    QSettings settings;
+    settings.clear();
 
     m_coordinator = new DictationCoordinator(this);
     m_recorder = new FakeAudioRecorder(this);
@@ -69,6 +72,8 @@ void TestStatusNotifier::initTestCase() {
 void TestStatusNotifier::cleanupTestCase() {
     delete m_service;
     delete m_coordinator;
+    QSettings settings;
+    settings.clear();
 }
 
 void TestStatusNotifier::testRegistrationAndProperties() {
