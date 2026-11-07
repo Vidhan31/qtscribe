@@ -18,7 +18,7 @@ class TestGeminiSttClient : public QObject {
 private slots:
     void initTestCase() {
         QCoreApplication::setOrganizationName(u"QTranscribeTest"_s);
-        QCoreApplication::setApplicationName(u"QTranscribeTest"_s);
+        QCoreApplication::setApplicationName(u"QTranscribeTest_Gemini"_s);
     }
 
     void cleanup() {

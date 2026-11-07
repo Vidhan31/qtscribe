@@ -15,6 +15,7 @@
 #include "SystemHealthMonitor.h"
 
 #include <QCoreApplication>
+#include <QSettings>
 #include <QSignalSpy>
 #include <QTest>
 
@@ -229,15 +230,21 @@ private:
 
 void TestDictationCoordinator::initTestCase() {
     QCoreApplication::setOrganizationName(u"QTranscribeTestOrg"_s);
-    QCoreApplication::setApplicationName(u"QTranscribeTestApp"_s);
+    QCoreApplication::setApplicationName(u"QTranscribeTestApp_DictationCoordinator"_s);
+    QSettings settings;
+    settings.clear();
 }
 
-void TestDictationCoordinator::cleanupTestCase() { }
+void TestDictationCoordinator::cleanupTestCase() {
+    QSettings settings;
+    settings.clear();
+}
 
 void TestDictationCoordinator::init() {
     m_coordinator = new DictationCoordinator(this);
     m_padModel = new DictationPadModel(this);
     m_healthMonitor = new SystemHealthMonitor(this);
+    m_healthMonitor->setNetworkOnlineForTesting(true);
     m_feedbackPlayer = new AudioFeedbackPlayer(this);
     m_recorder = new FakeAudioRecorder(this);
     m_whisperClient = new FakeSttClient(this);

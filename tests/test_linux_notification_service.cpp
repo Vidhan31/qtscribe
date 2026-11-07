@@ -1,4 +1,5 @@
 #include <QCoreApplication>
+#include <QSettings>
 #include <QSignalSpy>
 #include <QTest>
 
@@ -51,6 +52,7 @@ class TestLinuxNotificationService : public QObject {
 
 private slots:
     void initTestCase();
+    void cleanupTestCase();
     void testEnabledProperty();
     void testShowCategoryNotificationReplacement();
     void testNotificationClosedClearsCategory();
@@ -59,7 +61,14 @@ private slots:
 
 void TestLinuxNotificationService::initTestCase() {
     QCoreApplication::setOrganizationName(u"QTranscribeTestOrg"_s);
-    QCoreApplication::setApplicationName(u"QTranscribeTestApp"_s);
+    QCoreApplication::setApplicationName(u"QTranscribeTestApp_LinuxNotificationService"_s);
+    QSettings settings;
+    settings.clear();
+}
+
+void TestLinuxNotificationService::cleanupTestCase() {
+    QSettings settings;
+    settings.clear();
 }
 
 void TestLinuxNotificationService::testEnabledProperty() {

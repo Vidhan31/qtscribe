@@ -22,6 +22,7 @@
 #include "WhisperSttClient.h"
 
 #include <QCoreApplication>
+#include <QSettings>
 #include <QSignalSpy>
 #include <QTest>
 
@@ -32,6 +33,7 @@ class TestApplicationContext : public QObject {
 
 private slots:
     void initTestCase();
+    void cleanupTestCase();
     void testHeadlessInitialization();
     void testSubsystemWiringIntegrity();
     void testRepeatedInitializeIsNoOp();
@@ -39,7 +41,14 @@ private slots:
 
 void TestApplicationContext::initTestCase() {
     QCoreApplication::setOrganizationName(u"QTranscribeTestOrg"_s);
-    QCoreApplication::setApplicationName(u"QTranscribeTestApp"_s);
+    QCoreApplication::setApplicationName(u"QTranscribeTestApp_ApplicationContext"_s);
+    QSettings settings;
+    settings.clear();
+}
+
+void TestApplicationContext::cleanupTestCase() {
+    QSettings settings;
+    settings.clear();
 }
 
 void TestApplicationContext::testHeadlessInitialization() {

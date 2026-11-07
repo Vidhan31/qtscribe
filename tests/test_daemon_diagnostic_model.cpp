@@ -51,7 +51,9 @@ private:
 
 void TestDaemonDiagnosticModel::initTestCase() {
     QCoreApplication::setOrganizationName(u"QTranscribeTestOrg"_s);
-    QCoreApplication::setApplicationName(u"QTranscribeTestApp"_s);
+    QCoreApplication::setApplicationName(u"QTranscribeTestApp_DaemonDiagnosticModel"_s);
+    QSettings settings;
+    settings.clear();
 }
 
 void TestDaemonDiagnosticModel::cleanupTestCase() {
@@ -60,6 +62,9 @@ void TestDaemonDiagnosticModel::cleanupTestCase() {
 }
 
 void TestDaemonDiagnosticModel::init() {
+    QSettings settings;
+    settings.clear();
+
     m_connector = new DaemonConnector(this);
     m_injector = new MockInjector(this);
     m_model = new DaemonDiagnosticModel(this);
