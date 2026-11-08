@@ -1,5 +1,4 @@
 #include "AbstractSttClient.h"
-#include "CloudProviderModel.h"
 #include "CloudSttRouter.h"
 
 #include <QCoreApplication>
@@ -133,10 +132,8 @@ private slots:
 
     void testRoutingAndProviderSwitching() {
         cleanup();
-        CloudProviderModel model;
-        model.setActiveProviderId(u"groq"_s);
         CloudSttRouter router;
-        router.setCloudProviderModel(&model);
+        router.setActiveProviderId(u"groq"_s);
 
         FakeMockCloudSttClient groqClient(false);
         groqClient.m_mockText = u"Groq result"_s;
@@ -149,7 +146,7 @@ private slots:
         router.registerProvider(u"groq"_s, &groqClient);
         router.registerProvider(u"gemini"_s, &geminiClient);
 
-        QCOMPARE(model.activeProviderId(), u"groq"_s);
+        QCOMPARE(router.activeProviderId(), u"groq"_s);
         QCOMPARE(router.activeClient(), &groqClient);
         QCOMPARE(router.activeCloudClient(), &groqClient);
         QCOMPARE(router.handlesSmartFormatting(), false);
@@ -164,7 +161,7 @@ private slots:
         QCOMPARE(spyTransReady.count(), 1);
         QCOMPARE(spyTransReady.at(0).at(0).toString(), u"Groq result"_s);
 
-        model.setActiveProviderId(u"gemini"_s);
+        router.setActiveProviderId(u"gemini"_s);
         QCOMPARE(router.activeClient(), &geminiClient);
         QCOMPARE(router.activeCloudClient(), &geminiClient);
         QCOMPARE(router.handlesSmartFormatting(), true);
@@ -178,11 +175,8 @@ private slots:
     }
 
     void testCancelAndSignalDelegation() {
-        CloudProviderModel model;
-        model.setActiveProviderId(u"gemini"_s);
-
         CloudSttRouter router;
-        router.setCloudProviderModel(&model);
+        router.setActiveProviderId(u"gemini"_s);
 
         FakeMockCloudSttClient geminiClient(true);
         geminiClient.setMockApiKeySet(true);
@@ -204,11 +198,8 @@ private slots:
     }
 
     void testPolymorphicStatusPropertiesAndSignals() {
-        CloudProviderModel model;
-        model.setActiveProviderId(u"groq"_s);
-
         CloudSttRouter router;
-        router.setCloudProviderModel(&model);
+        router.setActiveProviderId(u"groq"_s);
 
         FakeMockCloudSttClient client(false);
         router.registerProvider(u"groq"_s, &client);
@@ -248,11 +239,8 @@ private slots:
     }
 
     void testProviderSwitchUpdatesStatusPropertiesAndRewiresSignals() {
-        CloudProviderModel model;
-        model.setActiveProviderId(u"groq"_s);
-
         CloudSttRouter router;
-        router.setCloudProviderModel(&model);
+        router.setActiveProviderId(u"groq"_s);
 
         FakeMockCloudSttClient groqClient(false);
         groqClient.setMockApiKeySet(true);
@@ -273,7 +261,7 @@ private slots:
         QSignalSpy spyRateLimited(&router, &CloudSttRouter::isRateLimitedChanged);
         QSignalSpy spyRetrySeconds(&router, &CloudSttRouter::retrySecondsRemainingChanged);
 
-        model.setActiveProviderId(u"gemini"_s);
+        router.setActiveProviderId(u"gemini"_s);
         QCOMPARE(spyApiKey.count(), 1);
         QCOMPARE(spyRateLimited.count(), 1);
         QCOMPARE(spyRetrySeconds.count(), 1);

@@ -5,7 +5,6 @@
 #include <QByteArray>
 #include <QObject>
 #include <QPointer>
-#include <QQmlEngine>
 #include <QString>
 
 class AudioRecorder;
@@ -15,8 +14,6 @@ class SystemHealthMonitor;
 
 class CompositeSttEngine : public AbstractSttClient {
     Q_OBJECT
-    QML_ELEMENT
-    QML_SINGLETON
 
     Q_PROPERTY(TranscriptionBackend activeBackend READ activeBackend WRITE setActiveBackend NOTIFY activeBackendChanged FINAL)
     Q_PROPERTY(bool autoSwitchOffline READ autoSwitchOffline WRITE setAutoSwitchOffline NOTIFY autoSwitchOfflineChanged FINAL)
@@ -53,6 +50,11 @@ public:
 
     [[nodiscard]] bool isAutoSwitchedToOffline() const;
 
+    void loadSettings();
+    void loadModel(const QString& customPath = QString());
+    void unloadModel();
+    void checkModelStatus();
+
     [[nodiscard]] AbstractSttClient* activeSttClient() const;
 
     void transcribe(const QByteArray& wavData) override;
@@ -86,6 +88,8 @@ signals:
     void offlineModelRequired();
     void networkDisconnectedDuringSession();
     void modelLoadFailed(const QString& modelPath, const QString& error);
+    void modelStatusChanged();
+    void computeDeviceChanged();
 
 private slots:
     void onActiveClientTranscriptionReady(const QString& text);

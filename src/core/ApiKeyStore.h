@@ -1,9 +1,9 @@
 #pragma once
 
 #include <QObject>
-#include <QQmlEngine>
 #include <QString>
 #include <QStringView>
+#include <QtQmlIntegration/qqmlintegration.h>
 
 class ApiKeyStore : public QObject {
     Q_OBJECT

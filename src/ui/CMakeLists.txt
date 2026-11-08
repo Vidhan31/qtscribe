@@ -11,29 +11,38 @@ qt_add_qml_module(qtscribe_ui
         QtQuick.Layouts
         QtQuick.Templates
     SOURCES
-        ${CMAKE_SOURCE_DIR}/src/core/AudioRecorder.h
-        ${CMAKE_SOURCE_DIR}/src/core/GlobalShortcutManager.h
+        DaemonClient.h
+        DaemonClient.cpp
+        GuiDictationCoordinator.h
+        GuiDictationCoordinator.cpp
+        GuiHealthMonitor.h
+        GuiHealthMonitor.cpp
+        GuiWhisperClient.h
+        GuiWhisperClient.cpp
+        DaemonDiagnosticModel.h
+        DaemonDiagnosticModel.cpp
+        TranscriptionModel.h
+        TranscriptionModel.cpp
+        DictationPadModel.h
+        DictationPadModel.cpp
+        CloudProviderModel.h
+        CloudProviderModel.cpp
+        NavigationModel.h
+        NavigationModel.cpp
+        LicenseHelper.h
+        ColorUtils.h
+        ColorUtils.cpp
         ${CMAKE_SOURCE_DIR}/src/core/HttpRequestRunner.h
         ${CMAKE_SOURCE_DIR}/src/core/AbstractSttClient.h
         ${CMAKE_SOURCE_DIR}/src/core/AbstractLlmClient.h
         ${CMAKE_SOURCE_DIR}/src/core/GroqSttClient.h
         ${CMAKE_SOURCE_DIR}/src/core/GeminiSttClient.h
         ${CMAKE_SOURCE_DIR}/src/core/CloudSttRouter.h
-        ${CMAKE_SOURCE_DIR}/src/core/WhisperSttClient.h
         ${CMAKE_SOURCE_DIR}/src/core/ModelDownloader.h
         ${CMAKE_SOURCE_DIR}/src/core/WhisperModelManager.h
         ${CMAKE_SOURCE_DIR}/src/core/GroqLlmClient.h
-        ${CMAKE_SOURCE_DIR}/src/core/CompositeSttEngine.h
-        ${CMAKE_SOURCE_DIR}/src/core/DictationCoordinator.h
-        ${CMAKE_SOURCE_DIR}/src/core/DictationPadModel.h
-        ${CMAKE_SOURCE_DIR}/src/core/SystemHealthMonitor.h
         ${CMAKE_SOURCE_DIR}/src/core/AudioFeedbackPlayer.h
-        ${CMAKE_SOURCE_DIR}/src/core/DaemonDiagnosticModel.h
-        ${CMAKE_SOURCE_DIR}/src/core/TranscriptionModel.h
-        ${CMAKE_SOURCE_DIR}/src/core/LicenseHelper.h
-        ${CMAKE_SOURCE_DIR}/src/core/ColorUtils.h
-        ${CMAKE_SOURCE_DIR}/src/core/NavigationModel.h
-        ${CMAKE_SOURCE_DIR}/src/core/CloudProviderModel.h
+        ${CMAKE_SOURCE_DIR}/src/core/AudioRecorder.h
         ${CMAKE_SOURCE_DIR}/src/core/LinuxNotificationService.h
     QML_FILES
         Main.qml
@@ -80,8 +89,6 @@ qt_add_resources(qtscribe_ui "qtscribe_assets"
     PREFIX "/qt/qml/QtScribe/assets"
     BASE "${CMAKE_SOURCE_DIR}/assets"
     FILES
-        ${CMAKE_SOURCE_DIR}/assets/chime_start.wav
-        ${CMAKE_SOURCE_DIR}/assets/chime_stop.wav
         ${CMAKE_SOURCE_DIR}/assets/speech-to-text-16.png
         ${CMAKE_SOURCE_DIR}/assets/speech-to-text-24.png
         ${CMAKE_SOURCE_DIR}/assets/speech-to-text-32.png
@@ -110,6 +117,7 @@ qt_add_resources(qtscribe_ui "qtscribe_assets"
 target_include_directories(qtscribe_ui
     PUBLIC
         ${CMAKE_SOURCE_DIR}/src/core
+        ${CMAKE_SOURCE_DIR}/src/ui
         ${CMAKE_SOURCE_DIR}/src
 )
 
@@ -127,6 +135,7 @@ target_link_libraries(qtscribe_ui
         Qt6::QuickControls2
         Qt6::QuickTemplates2
         Qt6::QuickEffects
+        Qt6::DBus
     PRIVATE
         qtscribe::compiler_flags
 )

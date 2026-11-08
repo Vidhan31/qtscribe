@@ -19,6 +19,7 @@ private slots:
     void testActiveProviderProperties();
     void testProviderLookupAndIndex();
     void testNavigationModelIsCloud();
+    void testSaveSettingsSyncsToDisk();
 };
 
 void TestCloudProviderModel::initTestCase() {
@@ -146,6 +147,15 @@ void TestCloudProviderModel::testNavigationModelIsCloud() {
             QCOMPARE(sectionId, u"offline"_s);
         }
     }
+}
+
+void TestCloudProviderModel::testSaveSettingsSyncsToDisk() {
+    CloudProviderModel model;
+    model.setActiveProviderId(u"gemini"_s);
+    QCOMPARE(model.activeProviderId(), u"gemini"_s);
+
+    QSettings settings;
+    QCOMPARE(settings.value(u"Cloud/ActiveProvider"_s).toString(), u"gemini"_s);
 }
 
 QTEST_GUILESS_MAIN(TestCloudProviderModel)

@@ -1,7 +1,15 @@
+#include "DictationCoordinator.h"
 #include "TranscriptionModel.h"
 
 #include <QCoreApplication>
+#include <QDateTime>
+#include <QDir>
+#include <QFileInfo>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QSignalSpy>
+#include <QTemporaryFile>
 #include <QTest>
 
 using namespace Qt::StringLiterals;
@@ -10,6 +18,10 @@ class TestTranscriptionModel : public QObject {
     Q_OBJECT
 
 private slots:
+    void initTestCase() {
+        qputenv("QTSCRIBE_DISABLE_REMOTE_ATTACH", "1");
+    }
+
     void testSourceModelRejectsEmptyAndWhitespace() {
         TranscriptionSourceModel source;
         QSignalSpy countSpy(&source, &TranscriptionSourceModel::countChanged);
@@ -123,6 +135,70 @@ private slots:
         model.setSearchFilter(QString());
         QCOMPARE(model.count(), 4);
         QCOMPARE(model.totalCount(), 4);
+    }
+
+    void testLoadHistoryRestoresOriginalFields() {
+        QTemporaryFile tempFile;
+        QVERIFY(tempFile.open());
+
+        const QString expectedId = u"test-uuid-1234"_s;
+        const QString dateStr = u"2026-01-15T12:30:00Z"_s;
+        const QDateTime expectedTimestamp = QDateTime::fromString(dateStr, Qt::ISODate);
+        const QString expectedText = u"Archived transcription record"_s;
+
+        QJsonArray records;
+        QJsonObject obj;
+        obj[u"id"_s] = expectedId;
+        obj[u"timestamp"_s] = dateStr;
+        obj[u"text"_s] = expectedText;
+        records.append(obj);
+
+        tempFile.write(QJsonDocument(records).toJson());
+        tempFile.close();
+
+        TranscriptionModel model;
+        model.loadHistory(tempFile.fileName());
+
+        QCOMPARE(model.count(), 1);
+        QCOMPARE(model.data(model.index(0, 0), static_cast<int>(TranscriptionModel::Roles::IdRole)).toString(), expectedId);
+        QCOMPARE(model.data(model.index(0, 0), static_cast<int>(TranscriptionModel::Roles::TimestampRole)).toDateTime(),
+                 expectedTimestamp);
+        QCOMPARE(model.data(model.index(0, 0), static_cast<int>(TranscriptionModel::Roles::TextRole)).toString(),
+                 expectedText);
+    }
+
+    void testLoadHistoryRestrictsExistingFilePermissions() {
+        QTemporaryFile tempFile;
+        QVERIFY(tempFile.open());
+        tempFile.write("[]");
+        tempFile.close();
+
+        QFile::setPermissions(tempFile.fileName(), QFileDevice::ReadOwner | QFileDevice::WriteOwner |
+                                                      QFileDevice::ReadGroup | QFileDevice::ReadOther);
+
+        TranscriptionModel model;
+        model.loadHistory(tempFile.fileName());
+
+        const QFile::Permissions perms = QFile::permissions(tempFile.fileName());
+        QVERIFY(perms.testFlag(QFileDevice::ReadOwner));
+        QVERIFY(perms.testFlag(QFileDevice::WriteOwner));
+        QVERIFY(!perms.testFlag(QFileDevice::ReadGroup));
+        QVERIFY(!perms.testFlag(QFileDevice::ReadOther));
+    }
+
+    void testClearAllRemovesHistoryFile() {
+        const QString historyPath = DictationCoordinator::historyFilePath();
+        const QFileInfo fileInfo(historyPath);
+        QDir().mkpath(fileInfo.absolutePath());
+        QFile f(historyPath);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("[]");
+        f.close();
+        QVERIFY(QFile::exists(historyPath));
+
+        TranscriptionModel model;
+        model.clearAll();
+        QVERIFY(!QFile::exists(historyPath));
     }
 };
 

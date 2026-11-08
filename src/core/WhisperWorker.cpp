@@ -38,8 +38,13 @@ WhisperWorker::~WhisperWorker() {
 }
 
 void WhisperWorker::loadModel(uint64_t loadRequestId, const QString& modelPath, bool useGpu) {
+    if (loadRequestId > m_cancelledLoadRequestId.load(std::memory_order_relaxed)) {
+        resetAbort();
+    }
+
     if (isLoadAborted(loadRequestId)) {
         qCDebug(lcSpeech) << "WhisperWorker: Model load request" << loadRequestId << "cancelled prior to processing";
+        emit modelLoaded(loadRequestId, modelPath, false, tr("Model loading cancelled"), QString());
         return;
     }
 
@@ -158,6 +163,7 @@ void WhisperWorker::loadModel(uint64_t loadRequestId, const QString& modelPath, 
             m_ctx = nullptr;
             m_activeDevice.clear();
         }
+        emit modelLoaded(loadRequestId, modelPath, false, tr("Model loading cancelled"), QString());
         return;
     }
 
@@ -183,15 +189,15 @@ void WhisperWorker::loadModel(uint64_t loadRequestId, const QString& modelPath, 
     emit modelLoaded(loadRequestId, modelPath, true, QString(), m_activeDevice);
 }
 
-void WhisperWorker::unloadModel() {
+void WhisperWorker::unloadModel(uint64_t unloadRequestId) {
     cancel();
     if (m_ctx) {
         qCDebug(lcSpeech) << "WhisperWorker: Unloading whisper context";
         whisper_free(m_ctx);
         m_ctx = nullptr;
         m_activeDevice.clear();
-        emit modelUnloaded();
     }
+    emit modelUnloaded(unloadRequestId);
 }
 
 void WhisperWorker::resetAbort() {

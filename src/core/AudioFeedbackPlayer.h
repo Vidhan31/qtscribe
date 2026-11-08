@@ -1,7 +1,7 @@
 #pragma once
 
 #include <QObject>
-#include <QQmlEngine>
+#include <QtQmlIntegration/qqmlintegration.h>
 
 class QSoundEffect;
 
@@ -18,6 +18,8 @@ public:
 
     bool soundEnabled() const;
     void setSoundEnabled(bool enabled);
+
+    void loadSettings();
 
 public slots:
     void playStartSound();

@@ -13,8 +13,7 @@ using namespace Qt::StringLiterals;
 
 LinuxNotificationService::LinuxNotificationService(QObject* parent)
     : QObject(parent) {
-    QSettings settings;
-    m_enabled = settings.value(u"notifications/enabled"_s, true).toBool();
+    loadSettings();
 
     if (QDBusConnection::sessionBus().isConnected()) {
         QDBusConnection::sessionBus().connect(u"org.freedesktop.Notifications"_s, u"/org/freedesktop/Notifications"_s,
@@ -34,8 +33,23 @@ bool LinuxNotificationService::isEnabled() const {
 void LinuxNotificationService::setEnabled(bool enable) {
     if (m_enabled != enable) {
         m_enabled = enable;
-        QSettings settings;
-        settings.setValue(u"notifications/enabled"_s, m_enabled);
+        {
+            QSettings settings;
+            settings.setValue(u"notifications/enabled"_s, m_enabled);
+            settings.sync();
+            if (settings.status() != QSettings::NoError) {
+                qWarning() << "LinuxNotificationService: Failed to save notifications/enabled:" << settings.status();
+            }
+        }
+        emit enabledChanged(m_enabled);
+    }
+}
+
+void LinuxNotificationService::loadSettings() {
+    QSettings settings;
+    const bool enabled = settings.value(u"notifications/enabled"_s, true).toBool();
+    if (m_enabled != enabled) {
+        m_enabled = enabled;
         emit enabledChanged(m_enabled);
     }
 }

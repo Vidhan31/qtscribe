@@ -1,4 +1,5 @@
 #include "AbstractTextInjector.h"
+#include "DaemonClient.h"
 #include "DaemonConnector.h"
 #include "DaemonDiagnosticModel.h"
 
@@ -42,6 +43,9 @@ private slots:
     void testClipboardWarningFlow();
     void testSettingsPersistence();
     void testTestTypingDelegation();
+    void testDaemonClientCanRecordOffline();
+    void testDaemonClientFocusCaching();
+    void testDaemonClientHonorsDisableRemoteAttach();
 
 private:
     DaemonConnector* m_connector = nullptr;
@@ -50,6 +54,7 @@ private:
 };
 
 void TestDaemonDiagnosticModel::initTestCase() {
+    qputenv("QTSCRIBE_DISABLE_REMOTE_ATTACH", "1");
     QCoreApplication::setOrganizationName(u"QTranscribeTestOrg"_s);
     QCoreApplication::setApplicationName(u"QTranscribeTestApp_DaemonDiagnosticModel"_s);
     QSettings settings;
@@ -130,6 +135,35 @@ void TestDaemonDiagnosticModel::testTestTypingDelegation() {
     QVERIFY(m_model->testTyping(u"Custom Test Text"_s));
     QCOMPARE(m_injector->m_injectCount, 2);
     QCOMPARE(m_injector->m_lastInjectedText, u"Custom Test Text"_s);
+}
+
+void TestDaemonDiagnosticModel::testDaemonClientCanRecordOffline() {
+    DaemonClient client;
+    QVERIFY(!client.isConnected());
+    QVERIFY(!client.canRecord());
+
+    QSignalSpy canRecordSpy(&client, &DaemonClient::canRecordChanged);
+    QMetaObject::invokeMethod(&client, "onServiceUnregistered", Q_ARG(QString, u"io.github.qtscribe.SpeechService"_s));
+    QCOMPARE(canRecordSpy.count(), 1);
+    QVERIFY(!client.canRecord());
+}
+
+void TestDaemonDiagnosticModel::testDaemonClientFocusCaching() {
+    DaemonClient client;
+    QVERIFY(!client.clientWindowFocused());
+
+    QSignalSpy focusSpy(&client, &DaemonClient::clientWindowFocusedChanged);
+    client.setClientWindowFocused(true);
+    QVERIFY(client.clientWindowFocused());
+    QCOMPARE(focusSpy.count(), 1);
+}
+
+void TestDaemonDiagnosticModel::testDaemonClientHonorsDisableRemoteAttach() {
+    qputenv("QTSCRIBE_DISABLE_REMOTE_ATTACH", "1");
+    DaemonClient client;
+    QVERIFY(!client.isConnected());
+    QVERIFY(!client.canRecord());
+    QCOMPARE(client.statusMessage(), client.tr("Background service offline"));
 }
 
 QTEST_GUILESS_MAIN(TestDaemonDiagnosticModel)

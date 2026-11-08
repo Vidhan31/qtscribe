@@ -3,25 +3,32 @@
 #include "AbstractSttClient.h"
 
 #include <QHash>
-#include <QQmlEngine>
 #include <QString>
+#include <QtQmlIntegration/qqmlintegration.h>
 
-class CloudProviderModel;
+class QQmlEngine;
+class QJSEngine;
 
 class CloudSttRouter : public AbstractSttClient {
     Q_OBJECT
     QML_ELEMENT
     QML_SINGLETON
 
+    Q_PROPERTY(QString activeProviderId READ activeProviderId WRITE setActiveProviderId NOTIFY activeProviderChanged FINAL)
+
 public:
     explicit CloudSttRouter(QObject* parent = nullptr);
-    ~CloudSttRouter() override = default;
+    ~CloudSttRouter() override;
 
-    void setCloudProviderModel(CloudProviderModel* model);
-    CloudProviderModel* cloudProviderModel() const;
+    static CloudSttRouter* instance();
+    static CloudSttRouter* create(QQmlEngine* qmlEngine, QJSEngine* jsEngine);
 
     void registerProvider(const QString& providerId, AbstractSttClient* client);
     void unregisterProvider(const QString& providerId);
+
+    [[nodiscard]] QString activeProviderId() const;
+    void setActiveProviderId(const QString& providerId);
+    void loadSettings();
 
     AbstractSttClient* activeCloudClient() const;
     AbstractSttClient* activeClient() const;
@@ -43,13 +50,14 @@ public:
     void activate() override;
     void deactivate() override;
 
-private slots:
-    void onActiveProviderChanged();
+signals:
+    void activeProviderChanged(const QString& providerId);
 
 private:
+    void initDefaultProviders();
     void updateActiveClient();
 
-    CloudProviderModel* m_providerModel = nullptr;
+    QString m_activeProviderId {QStringLiteral("groq")};
     QHash<QString, AbstractSttClient*> m_clients;
     AbstractSttClient* m_activeClient = nullptr;
 };

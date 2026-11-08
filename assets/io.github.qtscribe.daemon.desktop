@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=QtScribe Daemon
+Exec=qtscribed
+Icon=io.github.qtscribe
+Categories=Utility;
+Terminal=false
+StartupWMClass=io.github.qtscribe.daemon
+NoDisplay=true
+Comment=Speech to Text Background Daemon
+X-GNOME-Autostart-enabled=true

@@ -102,6 +102,37 @@ private slots:
         QTRY_COMPARE(store.apiKey(), u"custom_secret_value"_s);
         QVERIFY(store.apiKeySet());
     }
+
+    void testClearCachedKeyWhenReloadFindsNoKey() {
+        ApiKeyStore store;
+        store.setStorageKeys(u"QtScribeIsolatedTestSvc"_s, u"unused_nonexistent_key_9999"_s,
+                             u"Test/ApiKey"_s);
+
+        {
+            QSettings settings;
+            settings.setValue(u"Test/ApiKey"_s, u"initial_secret"_s);
+            settings.sync();
+        }
+
+        store.loadApiKey();
+        QTRY_COMPARE(store.apiKey(), u"initial_secret"_s);
+        QVERIFY(store.apiKeySet());
+
+        {
+            QSettings settings;
+            settings.remove(u"Test/ApiKey"_s);
+            settings.sync();
+        }
+
+        QSignalSpy keySpy(&store, &ApiKeyStore::apiKeyChanged);
+        QSignalSpy setSpy(&store, &ApiKeyStore::apiKeySetChanged);
+
+        store.loadApiKey();
+        QTRY_VERIFY(store.apiKey().isEmpty());
+        QVERIFY(!store.apiKeySet());
+        QCOMPARE(keySpy.count(), 1);
+        QCOMPARE(setSpy.count(), 1);
+    }
 };
 
 QTEST_GUILESS_MAIN(TestApiKeyStore)

@@ -4,13 +4,15 @@
 
 #include <QByteArray>
 #include <QPointer>
-#include <QQmlEngine>
 #include <QString>
+#include <QtQmlIntegration/qqmlintegration.h>
 
 class ApiKeyStore;
 class QNetworkAccessManager;
 class QNetworkReply;
 class QTimer;
+class QQmlEngine;
+class QJSEngine;
 struct CloudApiResponse;
 
 class GeminiSttClient : public AbstractSttClient {
@@ -25,7 +27,10 @@ class GeminiSttClient : public AbstractSttClient {
 
 public:
     explicit GeminiSttClient(QObject* parent = nullptr);
-    ~GeminiSttClient() override = default;
+    ~GeminiSttClient() override;
+
+    static GeminiSttClient* instance();
+    static GeminiSttClient* create(QQmlEngine* qmlEngine, QJSEngine* jsEngine);
 
     void setKeyStore(ApiKeyStore* store);
     ApiKeyStore* keyStore() const;
@@ -54,6 +59,8 @@ public:
 
     QString customVocabulary() const;
     void setCustomVocabulary(const QString& vocab);
+
+    void loadSettings();
 
     void activate() override;
     void deactivate() override;

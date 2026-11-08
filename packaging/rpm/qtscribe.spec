@@ -59,14 +59,19 @@ and seamless desktop integration on Wayland environments (Plasma 6+, GNOME 49+).
 
 %check
 desktop-file-validate %{buildroot}%{_datadir}/applications/io.github.qtscribe.desktop
+desktop-file-validate %{buildroot}%{_datadir}/applications/io.github.qtscribe.daemon.desktop
+desktop-file-validate %{buildroot}%{_sysconfdir}/xdg/autostart/io.github.qtscribe.daemon.desktop
 QT_QPA_PLATFORM=offscreen %ctest
 
 %files
 %license LICENSE
 %doc README.md
 %{_bindir}/qtscribe
+%{_bindir}/qtscribed
 %caps(cap_dac_override=p) %{_bindir}/keyinjectord
 %{_datadir}/applications/io.github.qtscribe.desktop
+%{_datadir}/applications/io.github.qtscribe.daemon.desktop
+%{_sysconfdir}/xdg/autostart/io.github.qtscribe.daemon.desktop
 %{_datadir}/icons/hicolor/*/apps/io.github.qtscribe.png
 %{_datadir}/icons/hicolor/*/apps/qtscribe.png
 

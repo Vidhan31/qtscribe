@@ -2,10 +2,10 @@
 
 #include <QHash>
 #include <QObject>
-#include <QQmlEngine>
 #include <QSet>
 #include <QString>
 #include <QStringList>
+#include <QtQmlIntegration/qqmlintegration.h>
 
 #include <cstdint>
 
@@ -26,6 +26,8 @@ public:
 
     bool isEnabled() const;
     void setEnabled(bool enable);
+
+    void loadSettings();
 
     Q_INVOKABLE virtual uint showNotification(const QString& title, const QString& body,
                                               Urgency urgency = Urgency::Normal,

@@ -4,7 +4,6 @@
 
 #include <QObject>
 #include <QPointer>
-#include <QQmlEngine>
 #include <QString>
 #include <QThread>
 
@@ -15,8 +14,6 @@ class WhisperModelManager;
 
 class WhisperSttClient : public AbstractSttClient {
     Q_OBJECT
-    QML_ELEMENT
-    QML_SINGLETON
 
     Q_PROPERTY(bool isModelInstalled READ isModelInstalled NOTIFY modelStatusChanged FINAL)
     Q_PROPERTY(bool isModelLoaded READ isModelLoaded NOTIFY modelStatusChanged FINAL)
@@ -46,6 +43,8 @@ public:
 
     bool isReady() const override;
     bool isBusy() const override;
+    [[nodiscard]] bool isActive() const noexcept { return m_active; }
+    [[nodiscard]] bool isExplicitlyUnloaded() const noexcept { return m_explicitlyUnloaded; }
 
     void activate() override;
     void deactivate() override;
@@ -55,6 +54,7 @@ public:
     Q_INVOKABLE void loadModel(const QString& customPath = QString());
     Q_INVOKABLE void unloadModel();
     Q_INVOKABLE void checkModelStatus();
+    void loadSettings();
 
 signals:
     void modelStatusChanged();
@@ -62,14 +62,14 @@ signals:
     void modelLoadFailed(const QString& modelPath, const QString& error);
 
     void requestLoadModel(uint64_t loadRequestId, const QString& path, bool useGpu);
-    void requestUnloadModel();
+    void requestUnloadModel(uint64_t unloadRequestId);
     void requestTranscribe(uint64_t requestId, const QByteArray& wavData, const QString& language,
                            const QString& prompt);
 
 private slots:
     void onWorkerModelLoaded(uint64_t loadRequestId, const QString& modelPath, bool success, const QString& error,
                              const QString& activeDevice);
-    void onWorkerModelUnloaded();
+    void onWorkerModelUnloaded(uint64_t unloadRequestId = 0);
     void onWorkerTranscriptionFinished(uint64_t requestId, const QString& text);
     void onWorkerTranscriptionFailed(uint64_t requestId, const QString& error);
 
@@ -84,10 +84,15 @@ private:
 
     uint64_t m_nextLoadRequestId = 1;
     uint64_t m_activeLoadRequestId = 0;
+    uint64_t m_nextUnloadRequestId = 1;
+    uint64_t m_activeUnloadRequestId = 0;
     uint64_t m_nextRequestId = 1;
     uint64_t m_activeRequestId = 0;
+    QString m_pendingLoadPath;
+    bool m_active = false;
     bool m_modelLoaded = false;
     bool m_busy = false;
+    bool m_explicitlyUnloaded = false;
     QString m_loadedModelPath;
     QString m_computeDevice;
     QString m_lastError;

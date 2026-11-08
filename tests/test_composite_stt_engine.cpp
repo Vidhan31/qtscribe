@@ -6,6 +6,7 @@
 #include "AbstractSttClient.h"
 #include "CompositeSttEngine.h"
 #include "SystemHealthMonitor.h"
+#include "WhisperSttClient.h"
 
 using namespace Qt::StringLiterals;
 
@@ -68,7 +69,9 @@ private slots:
     void testAutoSwitchOfflineWhenNetworkLost();
     void testAutoSwitchOfflineDeferredDuringBusy();
     void testAutoSwitchOfflineRestoreWhenNetworkReturns();
+    void testLoadSettingsPreservesOfflineFallback();
     void testRetryLast();
+    void testWhisperModelDelegation();
 
 private:
     CompositeSttEngine* m_engine = nullptr;
@@ -202,6 +205,21 @@ void TestCompositeSttEngine::testAutoSwitchOfflineRestoreWhenNetworkReturns() {
     QCOMPARE(m_engine->activeBackend(), CompositeSttEngine::TranscriptionBackend::Cloud);
 }
 
+void TestCompositeSttEngine::testLoadSettingsPreservesOfflineFallback() {
+    m_engine->setActiveBackend(CompositeSttEngine::TranscriptionBackend::Cloud, true);
+    m_healthMonitor->setNetworkOnlineForTesting(false);
+    QCOMPARE(m_engine->activeBackend(), CompositeSttEngine::TranscriptionBackend::WhisperCpp);
+    QVERIFY(m_engine->isAutoSwitchedToOffline());
+
+    m_engine->loadSettings();
+    QCOMPARE(m_engine->activeBackend(), CompositeSttEngine::TranscriptionBackend::WhisperCpp);
+    QVERIFY(m_engine->isAutoSwitchedToOffline());
+
+    m_healthMonitor->setNetworkOnlineForTesting(true);
+    QCOMPARE(m_engine->activeBackend(), CompositeSttEngine::TranscriptionBackend::Cloud);
+    QVERIFY(!m_engine->isAutoSwitchedToOffline());
+}
+
 void TestCompositeSttEngine::testRetryLast() {
     m_engine->setActiveBackend(CompositeSttEngine::TranscriptionBackend::Cloud);
     m_cloudClient->m_failNext = true;
@@ -218,6 +236,24 @@ void TestCompositeSttEngine::testRetryLast() {
     m_engine->retryLast();
     QCOMPARE(readySpy.count(), 1);
     QCOMPARE(readySpy.first().at(0).toString(), u"Retried text"_s);
+}
+
+void TestCompositeSttEngine::testWhisperModelDelegation() {
+    auto* whisper = new WhisperSttClient(this);
+    m_engine->setWhisperClient(whisper);
+    m_engine->setActiveBackend(CompositeSttEngine::TranscriptionBackend::WhisperCpp, false);
+    m_engine->activate();
+
+    m_engine->loadModel(u"/test/custom_path.bin"_s);
+    QVERIFY(!whisper->isModelLoaded());
+
+    m_engine->unloadModel();
+    QVERIFY(!whisper->isModelLoaded());
+    QVERIFY(whisper->isExplicitlyUnloaded());
+
+    // Passive settings reload with unchanged offline backend must honor explicit unload
+    m_engine->setActiveBackend(CompositeSttEngine::TranscriptionBackend::WhisperCpp, false);
+    QVERIFY(whisper->isExplicitlyUnloaded());
 }
 
 int main(int argc, char* argv[]) {

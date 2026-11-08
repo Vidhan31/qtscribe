@@ -3,8 +3,8 @@
 #include "AbstractLlmClient.h"
 #include "HttpRequestRunner.h"
 
-#include <QQmlEngine>
 #include <QString>
+#include <QtQmlIntegration/qqmlintegration.h>
 
 class ApiKeyStore;
 class QNetworkAccessManager;
@@ -50,6 +50,8 @@ public:
     double temperature() const;
     void setTemperature(double temp);
     QString formattedTemperature() const;
+
+    void loadSettings();
 
     Q_INVOKABLE QString systemPromptForPreset(const QString& preset) const;
     Q_INVOKABLE void processText(const QString& rawText) override;

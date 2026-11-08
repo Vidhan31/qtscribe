@@ -41,18 +41,7 @@ GroqLlmClient::GroqLlmClient(QObject* parent)
     , m_retryTimer(new QTimer(this)) {
     NetworkTlsHelper::ensureSystemProxyConfigured();
     m_nam->setTransferTimeout(15s);
-    QSettings settings;
-    m_enabled = settings.value(u"Groq/LlmEnabled"_s, false).toBool();
-    m_selectedModel = settings.value(u"Groq/LlmModel"_s, kDefaultModel.toString()).toString();
-    if (m_selectedModel.isEmpty() || m_selectedModel == u"llama-3.1-8b-instant"_s) {
-        m_selectedModel = kDefaultModel.toString();
-    }
-    m_activePreset = settings.value(u"Groq/LlmPreset"_s, u"grammar"_s).toString();
-    if (m_activePreset.isEmpty()) {
-        m_activePreset = u"grammar"_s;
-    }
-    m_customPrompt = settings.value(u"Groq/LlmCustomPrompt"_s, QString()).toString();
-    m_temperature = settings.value(u"Groq/LlmTemperature"_s, 0.1).toDouble();
+    loadSettings();
 
     m_retryTimer->setSingleShot(true);
     connect(m_retryTimer, &QTimer::timeout, this, [this]() {
@@ -60,6 +49,45 @@ GroqLlmClient::GroqLlmClient(QObject* parent)
             sendProcessRequest();
         }
     });
+}
+
+void GroqLlmClient::loadSettings() {
+    QSettings settings;
+    const bool enabledVal = settings.value(u"Groq/LlmEnabled"_s, false).toBool();
+    if (m_enabled != enabledVal) {
+        m_enabled = enabledVal;
+        emit enabledChanged();
+    }
+
+    QString model = settings.value(u"Groq/LlmModel"_s, kDefaultModel.toString()).toString();
+    if (model.isEmpty() || model == u"llama-3.1-8b-instant"_s) {
+        model = kDefaultModel.toString();
+    }
+    if (m_selectedModel != model) {
+        m_selectedModel = model;
+        emit selectedModelChanged();
+    }
+
+    QString preset = settings.value(u"Groq/LlmPreset"_s, u"grammar"_s).toString();
+    if (preset.isEmpty()) {
+        preset = u"grammar"_s;
+    }
+    if (m_activePreset != preset) {
+        m_activePreset = preset;
+        emit activePresetChanged();
+    }
+
+    QString prompt = settings.value(u"Groq/LlmCustomPrompt"_s, QString()).toString();
+    if (m_customPrompt != prompt) {
+        m_customPrompt = prompt;
+        emit customPromptChanged();
+    }
+
+    const double temp = settings.value(u"Groq/LlmTemperature"_s, 0.1).toDouble();
+    if (std::abs(m_temperature - temp) > 0.001) {
+        m_temperature = temp;
+        emit temperatureChanged();
+    }
 }
 
 void GroqLlmClient::setKeyStore(ApiKeyStore* keyStore) {
@@ -102,8 +130,14 @@ bool GroqLlmClient::enabled() const {
 void GroqLlmClient::setEnabled(bool enabled) {
     if (m_enabled != enabled) {
         m_enabled = enabled;
-        QSettings settings;
-        settings.setValue(u"Groq/LlmEnabled"_s, m_enabled);
+        {
+            QSettings settings;
+            settings.setValue(u"Groq/LlmEnabled"_s, m_enabled);
+            settings.sync();
+            if (settings.status() != QSettings::NoError) {
+                qWarning() << "GroqLlmClient: Failed to save Groq/LlmEnabled:" << settings.status();
+            }
+        }
         qCDebug(lcLLM) << "LLM post-processing enabled state changed to:" << m_enabled;
         emit enabledChanged();
     }
@@ -124,8 +158,14 @@ void GroqLlmClient::setSelectedModel(const QString& model) {
     }
     if (m_selectedModel != trimmed) {
         m_selectedModel = trimmed;
-        QSettings settings;
-        settings.setValue(u"Groq/LlmModel"_s, m_selectedModel);
+        {
+            QSettings settings;
+            settings.setValue(u"Groq/LlmModel"_s, m_selectedModel);
+            settings.sync();
+            if (settings.status() != QSettings::NoError) {
+                qWarning() << "GroqLlmClient: Failed to save Groq/LlmModel:" << settings.status();
+            }
+        }
         qCDebug(lcLLM) << "LLM model set to:" << m_selectedModel;
         emit selectedModelChanged();
     }
@@ -142,8 +182,14 @@ void GroqLlmClient::setActivePreset(const QString& preset) {
     }
     if (m_activePreset != trimmed) {
         m_activePreset = trimmed;
-        QSettings settings;
-        settings.setValue(u"Groq/LlmPreset"_s, m_activePreset);
+        {
+            QSettings settings;
+            settings.setValue(u"Groq/LlmPreset"_s, m_activePreset);
+            settings.sync();
+            if (settings.status() != QSettings::NoError) {
+                qWarning() << "GroqLlmClient: Failed to save Groq/LlmPreset:" << settings.status();
+            }
+        }
         qCDebug(lcLLM) << "Active LLM preset changed to:" << m_activePreset;
         emit activePresetChanged();
     }
@@ -157,8 +203,14 @@ void GroqLlmClient::setCustomPrompt(const QString& prompt) {
     const QString trimmed = prompt.trimmed();
     if (m_customPrompt != trimmed) {
         m_customPrompt = trimmed;
-        QSettings settings;
-        settings.setValue(u"Groq/LlmCustomPrompt"_s, m_customPrompt);
+        {
+            QSettings settings;
+            settings.setValue(u"Groq/LlmCustomPrompt"_s, m_customPrompt);
+            settings.sync();
+            if (settings.status() != QSettings::NoError) {
+                qWarning() << "GroqLlmClient: Failed to save Groq/LlmCustomPrompt:" << settings.status();
+            }
+        }
         qCDebug(lcLLM) << "Custom LLM prompt updated";
         emit customPromptChanged();
     }
@@ -172,8 +224,14 @@ void GroqLlmClient::setTemperature(double temp) {
     temp = std::clamp(temp, 0.0, 1.0);
     if (!qFuzzyCompare(m_temperature, temp)) {
         m_temperature = temp;
-        QSettings settings;
-        settings.setValue(u"Groq/LlmTemperature"_s, m_temperature);
+        {
+            QSettings settings;
+            settings.setValue(u"Groq/LlmTemperature"_s, m_temperature);
+            settings.sync();
+            if (settings.status() != QSettings::NoError) {
+                qWarning() << "GroqLlmClient: Failed to save Groq/LlmTemperature:" << settings.status();
+            }
+        }
         emit temperatureChanged();
     }
 }

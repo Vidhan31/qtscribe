@@ -2,9 +2,9 @@
 
 #include <QByteArray>
 #include <QObject>
-#include <QQmlEngine>
 #include <QString>
 #include <QVariantMap>
+#include <QtQmlIntegration/qqmlintegration.h>
 
 #include <cstdint>
 

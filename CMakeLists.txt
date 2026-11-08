@@ -125,6 +125,7 @@ endif()
 
 add_subdirectory(src/core)
 add_subdirectory(src/ui)
+add_subdirectory(src/daemon)
 if(BUILD_KEYINJECTORD)
     add_subdirectory(src/keyinjectord)
 endif()
@@ -151,6 +152,12 @@ target_link_libraries(qtscribe
         qtscribe_uiplugin
         qtscribe::compiler_flags
 )
+
+target_link_options(qtscribe
+    PRIVATE
+        "-Wl,--allow-multiple-definition"
+)
+
 
 target_precompile_headers(qtscribe
     PRIVATE
@@ -234,15 +241,26 @@ if(TARGET keyinjectord)
     add_dependencies(qtscribe keyinjectord)
 endif()
 
+if(TARGET qtscribed)
+    add_dependencies(qtscribe qtscribed)
+endif()
+
 if(ENABLE_CPACK_DEB)
     set(DESKTOP_AND_ICON_PREFIX "/usr/share")
+    set(XDG_AUTOSTART_PREFIX "/etc/xdg/autostart")
 else()
     set(DESKTOP_AND_ICON_PREFIX "${CMAKE_INSTALL_DATADIR}")
+    set(XDG_AUTOSTART_PREFIX "${CMAKE_INSTALL_SYSCONFDIR}/xdg/autostart")
 endif()
 
 install(
-    FILES assets/io.github.qtscribe.desktop
+    FILES assets/io.github.qtscribe.desktop assets/io.github.qtscribe.daemon.desktop
     DESTINATION ${DESKTOP_AND_ICON_PREFIX}/applications
+)
+
+install(
+    FILES assets/io.github.qtscribe.daemon.desktop
+    DESTINATION ${XDG_AUTOSTART_PREFIX}
 )
 
 set(APP_ICON_SIZES 16 24 32 64 128 256 512)

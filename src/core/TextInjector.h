@@ -23,6 +23,8 @@ public:
     [[nodiscard]] bool preventClipboardHistory() const noexcept;
     void setPreventClipboardHistory(bool prevent);
 
+    void loadSettings();
+
 private:
     bool doInjectText(const QString& text);
 

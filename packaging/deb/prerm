@@ -4,6 +4,7 @@ set -e
 case "$1" in
     remove|deconfigure)
         rm -f /usr/bin/qtscribe
+        rm -f /usr/bin/qtscribed
         rm -f /usr/bin/keyinjectord
         ;;
     upgrade|failed-upgrade)

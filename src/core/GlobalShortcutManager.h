@@ -4,7 +4,6 @@
 #include <QDBusObjectPath>
 #include <QList>
 #include <QObject>
-#include <QQmlEngine>
 #include <QString>
 #include <QVariantMap>
 
@@ -22,8 +21,6 @@ const QDBusArgument& operator>>(const QDBusArgument& argument, PortalShortcut& s
 
 class GlobalShortcutManager : public QObject {
     Q_OBJECT
-    QML_ELEMENT
-    QML_SINGLETON
 
     Q_PROPERTY(bool available READ isAvailable NOTIFY availableChanged FINAL)
     Q_PROPERTY(bool supported READ isSupported NOTIFY supportedChanged FINAL)

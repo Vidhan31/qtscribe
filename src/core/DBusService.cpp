@@ -4,6 +4,7 @@
 #include "LoggingCategories.h"
 
 #include <QDBusConnection>
+#include <QDBusConnectionInterface>
 #include <QDBusInterface>
 #include <QDBusMessage>
 
@@ -30,10 +31,24 @@ bool DBusService::sendRemoteCommand(const QString& method) {
     return false;
 }
 
+bool DBusService::isRemoteRunning() {
+    if (!QDBusConnection::sessionBus().isConnected()) {
+        return false;
+    }
+    auto* iface = QDBusConnection::sessionBus().interface();
+    return iface && iface->isServiceRegistered(kDbusServiceName.toString());
+}
+
 bool DBusService::registerService() {
     if (!QDBusConnection::sessionBus().isConnected()) {
         qWarning() << "DBusService: Session bus not connected";
         return false;
+    }
+
+    auto* iface = QDBusConnection::sessionBus().interface();
+    if (iface && iface->isServiceRegistered(kDbusServiceName.toString())) {
+        m_registered = true;
+        return true;
     }
 
     if (!QDBusConnection::sessionBus().registerService(kDbusServiceName.toString())) {
@@ -41,6 +56,7 @@ bool DBusService::registerService() {
         return false;
     }
 
+    m_registered = true;
     return true;
 }
 
@@ -53,9 +69,8 @@ bool DBusService::registerController(DictationCoordinator* coordinator) {
         return false;
     }
 
-    bool ok = QDBusConnection::sessionBus().registerObject(
-        kDbusObjectPath.toString(), kDbusInterfaceName.toString(), coordinator,
-        QDBusConnection::ExportAllSlots | QDBusConnection::ExportAllSignals | QDBusConnection::ExportAllInvokables);
+    bool ok = QDBusConnection::sessionBus().registerObject(kDbusObjectPath.toString(), kDbusInterfaceName.toString(),
+                                                           coordinator, QDBusConnection::ExportAllContents);
 
     if (ok) {
         m_registered = true;

@@ -745,13 +745,14 @@ Item {
                         }
 
                         StyledText {
-                            text: GlobalShortcutManager.statusMessage.length > 0 ? GlobalShortcutManager.statusMessage :
-                                                                                   qsTr("Registered via Desktop Portal (Ctrl+Shift+Space)")
+                            text: DictationCoordinator.shortcutStatusMessage.length > 0
+                                  ? DictationCoordinator.shortcutStatusMessage : qsTr(
+                                        "Registered via Desktop Portal (Ctrl+Shift+Space)")
                             variant: "caption"
-                            customColor: GlobalShortcutManager.available ? Theme.colorSuccess : (
-                                                                               GlobalShortcutManager.supported
-                                                                               ? Theme.colorWarning :
-                                                                                 Theme.textSecondary)
+                            customColor: DictationCoordinator.shortcutAvailable ? Theme.colorSuccess : (
+                                                                                      DictationCoordinator.shortcutSupported
+                                                                                      ? Theme.colorWarning :
+                                                                                        Theme.textSecondary)
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap
                         }

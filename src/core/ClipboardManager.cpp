@@ -143,9 +143,7 @@ void ClipboardManager::restore(const QString& backup, bool hadContent) {
                 u"wl-copy not found in PATH. Please install the 'wl-clipboard' package from your system package manager."_s);
             return;
         }
-        QProcess proc;
-        proc.start(wlCopy, {u"--clear"_s});
-        proc.waitForFinished(500);
+        QProcess::startDetached(wlCopy, {u"--clear"_s});
         return;
     }
     setText(backup, /*sensitive=*/false);

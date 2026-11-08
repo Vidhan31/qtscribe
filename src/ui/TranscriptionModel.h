@@ -3,9 +3,9 @@
 #include <QAbstractListModel>
 #include <QDateTime>
 #include <QList>
-#include <QQmlEngine>
 #include <QSortFilterProxyModel>
 #include <QString>
+#include <QtQmlIntegration/qqmlintegration.h>
 
 #include <cstdint>
 
@@ -31,6 +31,8 @@ public:
 
     int count() const;
     void addRecord(const QString& text);
+    void addRecord(const TranscriptionRecord& record);
+    void setRecords(const QList<TranscriptionRecord>& records);
     void clearAll();
 
 signals:
@@ -66,6 +68,7 @@ public:
     Q_INVOKABLE void addRecord(const QString& text);
     Q_INVOKABLE void clearAll();
     Q_INVOKABLE void copyToClipboard(const QString& text);
+    Q_INVOKABLE void loadHistory(const QString& filePath = QString());
 
 signals:
     void countChanged();

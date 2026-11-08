@@ -2,8 +2,8 @@
 
 #include <QAbstractListModel>
 #include <QList>
-#include <QQmlEngine>
 #include <QString>
+#include <QtQmlIntegration/qqmlintegration.h>
 
 #include <cstdint>
 
@@ -65,13 +65,14 @@ public:
     Q_INVOKABLE [[nodiscard]] int indexOfProvider(const QString& id) const;
     Q_INVOKABLE [[nodiscard]] QString providerIdAt(int index) const;
 
+    void loadSettings();
+
 signals:
     void activeProviderChanged();
     void countChanged();
 
 private:
     void initializeProviders();
-    void loadSettings();
     void saveSettings();
 
     QString m_activeProviderId {QStringLiteral("groq")};

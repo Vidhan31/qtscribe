@@ -58,6 +58,7 @@ build() {
 
 check() {
   desktop-file-validate "${srcdir}/${pkgname}-${pkgver}/assets/io.github.qtscribe.desktop"
+  desktop-file-validate "${srcdir}/${pkgname}-${pkgver}/assets/io.github.qtscribe.daemon.desktop"
   QT_QPA_PLATFORM=offscreen ctest --test-dir build --output-on-failure
 }
 

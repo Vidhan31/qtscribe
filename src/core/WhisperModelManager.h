@@ -4,8 +4,8 @@
 
 #include <QAbstractListModel>
 #include <QList>
-#include <QQmlEngine>
 #include <QString>
+#include <QtQmlIntegration/qqmlintegration.h>
 
 #include <cstdint>
 #include <memory>
@@ -76,6 +76,8 @@ public:
     explicit WhisperModelManager(std::unique_ptr<ModelDownloader> downloader, QObject* parent = nullptr);
     ~WhisperModelManager() override;
 
+    static WhisperModelManager* instance();
+
     int rowCount(const QModelIndex& parent = QModelIndex()) const override;
     QVariant data(const QModelIndex& index, int role = Qt::DisplayRole) const override;
     QHash<int, QByteArray> roleNames() const override;
@@ -115,6 +117,7 @@ public:
     Q_INVOKABLE bool deleteModel(const QString& modelId);
     Q_INVOKABLE void refreshModelList();
     Q_INVOKABLE void checkDiskSpace();
+    void loadSettings();
     void scanInstalledModels();
     void cleanupOrphanedPartFiles();
 

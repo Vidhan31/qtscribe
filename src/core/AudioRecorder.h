@@ -3,8 +3,8 @@
 #include <QAudioFormat>
 #include <QByteArray>
 #include <QObject>
-#include <QQmlEngine>
 #include <QString>
+#include <QtQmlIntegration/qqmlintegration.h>
 
 class QAudioSource;
 class QTimer;

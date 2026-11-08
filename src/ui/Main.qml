@@ -12,7 +12,7 @@ T.ApplicationWindow {
     height: 660
     minimumWidth: 760
     minimumHeight: 520
-    visible: false
+    visible: true
     title: qsTr("QtScribe")
     color: Theme.windowBg
 
@@ -66,11 +66,14 @@ T.ApplicationWindow {
         Qt.quit();
     }
 
+    onActiveChanged: {
+        DictationCoordinator.setClientWindowFocused(root.active);
+    }
+
     onClosing: close => {
-        if (!root.isQuitting) {
-            close.accepted = false;
-            root.hide();
-        }
+        close.accepted = true;
+        DictationCoordinator.setClientWindowFocused(false);
+        Qt.quit();
     }
 
     Connections {
@@ -105,6 +108,12 @@ T.ApplicationWindow {
     NavigationModel {
         id: navModel
         isCloud: DictationCoordinator.activeBackend === DictationCoordinator.Cloud
+    }
+
+    Binding {
+        target: CloudSttRouter
+        property: "activeProviderId"
+        value: CloudProviderModel.activeProviderId
     }
 
     RowLayout {

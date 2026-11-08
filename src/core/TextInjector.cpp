@@ -5,6 +5,7 @@
 
 #include "keyinjectord/protocol.h"
 
+#include <QDebug>
 #include <QSettings>
 #include <QTimer>
 
@@ -26,6 +27,10 @@ TextInjector::TextInjector(DaemonConnector* connector, ClipboardManager* clipboa
         doInjectText(text);
     });
 
+    loadSettings();
+}
+
+void TextInjector::loadSettings() {
     QSettings settings;
     m_preventClipboardHistory = settings.value(u"Clipboard/PreventHistory"_s, true).toBool();
     m_injectionDelay = settings.value(u"Typing/PreInjectionDelayMs"_s, 200).toInt();
@@ -65,8 +70,14 @@ void TextInjector::setInjectionDelay(int delayMs) {
     delayMs = std::clamp(delayMs, 0, 10000);
     if (m_injectionDelay != delayMs) {
         m_injectionDelay = delayMs;
-        QSettings settings;
-        settings.setValue(u"Typing/PreInjectionDelayMs"_s, delayMs);
+        {
+            QSettings settings;
+            settings.setValue(u"Typing/PreInjectionDelayMs"_s, delayMs);
+            settings.sync();
+            if (settings.status() != QSettings::NoError) {
+                qWarning() << "TextInjector: Failed to save Typing/PreInjectionDelayMs:" << settings.status();
+            }
+        }
     }
 }
 
@@ -77,8 +88,14 @@ bool TextInjector::preventClipboardHistory() const noexcept {
 void TextInjector::setPreventClipboardHistory(bool prevent) {
     if (m_preventClipboardHistory != prevent) {
         m_preventClipboardHistory = prevent;
-        QSettings settings;
-        settings.setValue(u"Clipboard/PreventHistory"_s, prevent);
+        {
+            QSettings settings;
+            settings.setValue(u"Clipboard/PreventHistory"_s, prevent);
+            settings.sync();
+            if (settings.status() != QSettings::NoError) {
+                qWarning() << "TextInjector: Failed to save Clipboard/PreventHistory:" << settings.status();
+            }
+        }
     }
 }
 
@@ -89,6 +106,7 @@ bool TextInjector::doInjectText(const QString& text) {
 
     if (!m_connector->isConnected()) {
         if (!m_connector->connectToServer()) {
+            qWarning() << "TextInjector: Failed to connect to keyinjectord daemon:" << m_connector->lastError();
             return false;
         }
     }
@@ -112,6 +130,7 @@ bool TextInjector::doInjectText(const QString& text) {
     }
 
     if (!pasteOk) {
+        qWarning() << "TextInjector: Paste command failed on keyinjectord:" << m_connector->lastError();
         m_clipboard->restore(savedText, hadContent);
         return false;
     }

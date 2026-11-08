@@ -17,7 +17,12 @@ using namespace Qt::StringLiterals;
 namespace {
 const auto kDefaultSelectedModel = u"tiny.en"_s;
 const auto kHfBaseUrl = u"https://huggingface.co/ggerganov/whisper.cpp/resolve/main/"_s;
+WhisperModelManager* s_instance = nullptr;
 } // namespace
+
+WhisperModelManager* WhisperModelManager::instance() {
+    return s_instance;
+}
 
 WhisperModelManager::WhisperModelManager(QObject* parent)
     : WhisperModelManager(std::make_unique<ModelDownloader>(), parent) { }
@@ -25,6 +30,7 @@ WhisperModelManager::WhisperModelManager(QObject* parent)
 WhisperModelManager::WhisperModelManager(std::unique_ptr<ModelDownloader> downloader, QObject* parent)
     : QAbstractListModel(parent)
     , m_downloader(std::move(downloader)) {
+    s_instance = this;
     if (!m_downloader) {
         m_downloader = std::make_unique<ModelDownloader>(this);
     } else {
@@ -54,7 +60,11 @@ WhisperModelManager::WhisperModelManager(std::unique_ptr<ModelDownloader> downlo
     }
 }
 
-WhisperModelManager::~WhisperModelManager() = default;
+WhisperModelManager::~WhisperModelManager() {
+    if (s_instance == this) {
+        s_instance = nullptr;
+    }
+}
 
 void WhisperModelManager::initPresets() {
     m_models = {
@@ -338,8 +348,14 @@ void WhisperModelManager::setSelectedModelId(const QString& id) {
         const QString oldId = m_selectedModelId;
         m_selectedModelId = id;
 
-        QSettings settings;
-        settings.setValue(u"Whisper/SelectedModel"_s, m_selectedModelId);
+        {
+            QSettings settings;
+            settings.setValue(u"Whisper/SelectedModel"_s, m_selectedModelId);
+            settings.sync();
+            if (settings.status() != QSettings::NoError) {
+                qWarning() << "WhisperModelManager: Failed to save Whisper/SelectedModel:" << settings.status();
+            }
+        }
 
         const int oldIdx = findModelIndex(oldId);
         if (oldIdx >= 0) {
@@ -354,6 +370,15 @@ void WhisperModelManager::setSelectedModelId(const QString& id) {
 
         emit selectedModelChanged();
         emit modelStatusChanged();
+    }
+}
+
+void WhisperModelManager::loadSettings() {
+    refreshModelList();
+    QSettings settings;
+    const QString modelId = settings.value(u"Whisper/SelectedModel"_s, QString()).toString();
+    if (!modelId.isEmpty() && isModelInstalled(modelId)) {
+        setSelectedModelId(modelId);
     }
 }
 

@@ -1,8 +1,8 @@
 #pragma once
 
 #include <QObject>
-#include <QQmlEngine>
 #include <QString>
+#include <QtQmlIntegration/qqmlintegration.h>
 
 class DictationPadModel : public QObject {
     Q_OBJECT

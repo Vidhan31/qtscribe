@@ -2,8 +2,8 @@
 
 #include <QAbstractListModel>
 #include <QList>
-#include <QQmlEngine>
 #include <QString>
+#include <QtQmlIntegration/qqmlintegration.h>
 
 #include <cstdint>
 

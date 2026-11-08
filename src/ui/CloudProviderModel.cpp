@@ -1,5 +1,10 @@
 #include "CloudProviderModel.h"
 
+#include "DBusService.h"
+
+#include "DaemonClient.h"
+
+#include <QDebug>
 #include <QSettings>
 
 using namespace Qt::StringLiterals;
@@ -168,14 +173,32 @@ void CloudProviderModel::initializeProviders() {
 void CloudProviderModel::loadSettings() {
     QSettings settings;
     const auto savedProvider = settings.value(u"Cloud/ActiveProvider"_s, u"groq"_s).toString();
-    if (indexOfProvider(savedProvider) >= 0) {
-        m_activeProviderId = savedProvider;
-    } else {
-        m_activeProviderId = u"groq"_s;
+    const QString targetId = (indexOfProvider(savedProvider) >= 0) ? savedProvider : u"groq"_s;
+    if (m_activeProviderId != targetId) {
+        m_activeProviderId = targetId;
+        if (rowCount() > 0) {
+            emit dataChanged(index(0, 0), index(rowCount() - 1, 0), {IsActiveRole});
+        }
+        emit activeProviderChanged();
     }
 }
 
 void CloudProviderModel::saveSettings() {
-    QSettings settings;
-    settings.setValue(u"Cloud/ActiveProvider"_s, m_activeProviderId);
+    bool ok = false;
+    {
+        QSettings settings;
+        settings.setValue(u"Cloud/ActiveProvider"_s, m_activeProviderId);
+        settings.sync();
+        ok = (settings.status() == QSettings::NoError);
+        if (!ok) {
+            qWarning() << "CloudProviderModel: Failed to save Cloud/ActiveProvider:" << settings.status();
+        }
+    }
+    if (ok) {
+        if (auto* client = DaemonClient::instance()) {
+            client->reloadSettings();
+        } else {
+            DBusService::sendRemoteCommand(u"reloadSettings"_s);
+        }
+    }
 }

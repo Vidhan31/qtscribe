@@ -14,15 +14,35 @@ using namespace Qt::StringLiterals;
 
 CompositeSttEngine::CompositeSttEngine(QObject* parent)
     : AbstractSttClient(parent) {
+    loadSettings();
+}
+
+void CompositeSttEngine::loadSettings() {
     QSettings settings;
-    const QString backendStr = settings.value(u"Speech/Backend"_s, u"WhisperCpp"_s).toString();
-    if (backendStr == u"Cloud"_s || backendStr == u"Groq"_s) {
-        m_activeBackend = TranscriptionBackend::Cloud;
-    } else {
-        m_activeBackend = TranscriptionBackend::WhisperCpp;
+    const QString backendStr = settings.value(u"Speech/Backend"_s, u"Cloud"_s).toString();
+    const auto targetBackend =
+        (backendStr == u"WhisperCpp"_s) ? TranscriptionBackend::WhisperCpp : TranscriptionBackend::Cloud;
+    if (!m_autoSwitchedToOffline || targetBackend == TranscriptionBackend::WhisperCpp) {
+        if (m_activeBackend != targetBackend) {
+            m_activeBackend = targetBackend;
+            emit activeBackendChanged();
+        }
     }
 
-    m_autoSwitchOffline = settings.value(u"Speech/AutoSwitchOffline"_s, true).toBool();
+    const bool autoSwitch = settings.value(u"Speech/AutoSwitchOffline"_s, true).toBool();
+    if (m_autoSwitchOffline != autoSwitch) {
+        m_autoSwitchOffline = autoSwitch;
+        emit autoSwitchOfflineChanged();
+        if (!m_autoSwitchOffline && m_autoSwitchedToOffline && !isBusy()) {
+            restoreOnlineBackend();
+        }
+    }
+
+    if (m_whisperClient) {
+        if (auto* whisper = qobject_cast<WhisperSttClient*>(m_whisperClient.data())) {
+            whisper->loadSettings();
+        }
+    }
 }
 
 void CompositeSttEngine::setCloudClient(AbstractSttClient* client) {
@@ -91,6 +111,9 @@ void CompositeSttEngine::setWhisperClient(AbstractSttClient* client) {
         if (auto* whisper = qobject_cast<WhisperSttClient*>(m_whisperClient.data())) {
             disconnect(whisper, &WhisperSttClient::modelLoadFailed, this,
                        &CompositeSttEngine::onWhisperModelLoadFailed);
+            disconnect(whisper, &WhisperSttClient::modelStatusChanged, this, &CompositeSttEngine::modelStatusChanged);
+            disconnect(whisper, &WhisperSttClient::computeDeviceChanged, this,
+                       &CompositeSttEngine::computeDeviceChanged);
         }
     }
 
@@ -104,6 +127,8 @@ void CompositeSttEngine::setWhisperClient(AbstractSttClient* client) {
         connect(m_whisperClient, &AbstractSttClient::readyChanged, this, &AbstractSttClient::readyChanged);
         if (auto* whisper = qobject_cast<WhisperSttClient*>(m_whisperClient.data())) {
             connect(whisper, &WhisperSttClient::modelLoadFailed, this, &CompositeSttEngine::onWhisperModelLoadFailed);
+            connect(whisper, &WhisperSttClient::modelStatusChanged, this, &CompositeSttEngine::modelStatusChanged);
+            connect(whisper, &WhisperSttClient::computeDeviceChanged, this, &CompositeSttEngine::computeDeviceChanged);
         }
 
         if (m_active && m_activeBackend == TranscriptionBackend::WhisperCpp) {
@@ -179,6 +204,13 @@ CompositeSttEngine::TranscriptionBackend CompositeSttEngine::activeBackend() con
 
 void CompositeSttEngine::setActiveBackend(TranscriptionBackend backend, bool persistSettings) {
     if (m_activeBackend == backend) {
+        if (m_active && m_activeBackend == TranscriptionBackend::WhisperCpp) {
+            if (auto* whisper = qobject_cast<WhisperSttClient*>(m_whisperClient.data())) {
+                if (!whisper->isModelLoaded() && whisper->isModelInstalled() && !whisper->isExplicitlyUnloaded()) {
+                    whisper->activate();
+                }
+            }
+        }
         return;
     }
 
@@ -481,5 +513,23 @@ void CompositeSttEngine::setLastError(const QString& error) {
     if (m_lastError != error) {
         m_lastError = error;
         emit lastErrorChanged();
+    }
+}
+
+void CompositeSttEngine::loadModel(const QString& customPath) {
+    if (auto* whisper = qobject_cast<WhisperSttClient*>(m_whisperClient.data())) {
+        whisper->loadModel(customPath);
+    }
+}
+
+void CompositeSttEngine::unloadModel() {
+    if (auto* whisper = qobject_cast<WhisperSttClient*>(m_whisperClient.data())) {
+        whisper->unloadModel();
+    }
+}
+
+void CompositeSttEngine::checkModelStatus() {
+    if (auto* whisper = qobject_cast<WhisperSttClient*>(m_whisperClient.data())) {
+        whisper->checkModelStatus();
     }
 }

@@ -1,5 +1,6 @@
 #include "AudioFeedbackPlayer.h"
 
+#include <QDebug>
 #include <QSettings>
 #include <QSoundEffect>
 #include <QUrl>
@@ -16,8 +17,16 @@ AudioFeedbackPlayer::AudioFeedbackPlayer(QObject* parent)
     m_stopChime->setSource(QUrl(u"qrc:/qt/qml/QtScribe/assets/chime_stop.wav"_s));
     m_stopChime->setVolume(0.8f);
 
+    loadSettings();
+}
+
+void AudioFeedbackPlayer::loadSettings() {
     QSettings settings;
-    m_soundEnabled = settings.value(u"Audio/SoundEnabled"_s, true).toBool();
+    const bool sound = settings.value(u"Audio/SoundEnabled"_s, true).toBool();
+    if (m_soundEnabled != sound) {
+        m_soundEnabled = sound;
+        emit soundEnabledChanged();
+    }
 }
 
 bool AudioFeedbackPlayer::soundEnabled() const {
@@ -27,8 +36,14 @@ bool AudioFeedbackPlayer::soundEnabled() const {
 void AudioFeedbackPlayer::setSoundEnabled(bool enabled) {
     if (m_soundEnabled != enabled) {
         m_soundEnabled = enabled;
-        QSettings settings;
-        settings.setValue(u"Audio/SoundEnabled"_s, m_soundEnabled);
+        {
+            QSettings settings;
+            settings.setValue(u"Audio/SoundEnabled"_s, m_soundEnabled);
+            settings.sync();
+            if (settings.status() != QSettings::NoError) {
+                qWarning() << "AudioFeedbackPlayer: Failed to save Audio/SoundEnabled:" << settings.status();
+            }
+        }
         emit soundEnabledChanged();
     }
 }

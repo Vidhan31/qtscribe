@@ -124,9 +124,14 @@ RUN set -eux; \
     echo "Validating installed binaries & capabilities:"; \
     echo "============================================================"; \
     test -x /usr/bin/qtscribe; \
+    test -x /usr/bin/qtscribed; \
     test -x /usr/bin/keyinjectord; \
     test -f /usr/share/applications/io.github.qtscribe.desktop; \
     desktop-file-validate /usr/share/applications/io.github.qtscribe.desktop; \
+    test -f /usr/share/applications/io.github.qtscribe.daemon.desktop; \
+    desktop-file-validate /usr/share/applications/io.github.qtscribe.daemon.desktop; \
+    test -f /etc/xdg/autostart/io.github.qtscribe.daemon.desktop; \
+    desktop-file-validate /etc/xdg/autostart/io.github.qtscribe.daemon.desktop; \
     getcap /usr/bin/keyinjectord | grep -E 'cap_dac_override[+=]p'
 
 FROM scratch AS export

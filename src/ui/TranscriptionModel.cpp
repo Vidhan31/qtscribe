@@ -1,7 +1,16 @@
 #include "TranscriptionModel.h"
 
-#include <QClipboard>
-#include <QGuiApplication>
+#include "ClipboardManager.h"
+#include "DictationCoordinator.h"
+
+#include "DaemonClient.h"
+
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QLockFile>
+#include <QStandardPaths>
 #include <QUuid>
 
 using namespace Qt::StringLiterals;
@@ -46,15 +55,13 @@ int TranscriptionSourceModel::count() const {
     return static_cast<int>(m_records.size());
 }
 
-void TranscriptionSourceModel::addRecord(const QString& text) {
-    if (text.trimmed().isEmpty()) {
+void TranscriptionSourceModel::addRecord(const TranscriptionRecord& record) {
+    if (record.text.trimmed().isEmpty()) {
         return;
     }
 
     beginInsertRows(QModelIndex(), 0, 0);
-    m_records.prepend(TranscriptionRecord {.id = QUuid::createUuid().toString(QUuid::WithoutBraces),
-                                           .timestamp = QDateTime::currentDateTimeUtc(),
-                                           .text = text});
+    m_records.prepend(record);
     endInsertRows();
 
     if (m_records.size() > kMaxHistoryRecords) {
@@ -66,6 +73,26 @@ void TranscriptionSourceModel::addRecord(const QString& text) {
         endRemoveRows();
     }
 
+    emit countChanged();
+}
+
+void TranscriptionSourceModel::addRecord(const QString& text) {
+    if (text.trimmed().isEmpty()) {
+        return;
+    }
+
+    addRecord(TranscriptionRecord {.id = QUuid::createUuid().toString(QUuid::WithoutBraces),
+                                   .timestamp = QDateTime::currentDateTimeUtc(),
+                                   .text = text});
+}
+
+void TranscriptionSourceModel::setRecords(const QList<TranscriptionRecord>& records) {
+    beginResetModel();
+    m_records = records;
+    if (m_records.size() > kMaxHistoryRecords) {
+        m_records = m_records.sliced(0, kMaxHistoryRecords);
+    }
+    endResetModel();
     emit countChanged();
 }
 
@@ -92,6 +119,72 @@ TranscriptionModel::TranscriptionModel(QObject* parent)
     connect(&m_sourceModel, &TranscriptionSourceModel::rowsInserted, this, &TranscriptionModel::countChanged);
     connect(&m_sourceModel, &TranscriptionSourceModel::rowsRemoved, this, &TranscriptionModel::countChanged);
     connect(&m_sourceModel, &TranscriptionSourceModel::modelReset, this, &TranscriptionModel::countChanged);
+
+    loadHistory();
+
+    if (auto* client = DaemonClient::instance()) {
+        connect(client, &DaemonClient::transcriptionFinished, this, &TranscriptionModel::addRecord);
+        connect(client, &DaemonClient::historyCleared, this, [this]() { m_sourceModel.clearAll(); });
+    }
+}
+
+void TranscriptionModel::loadHistory(const QString& filePath) {
+    QString resolvedPath = filePath;
+    if (resolvedPath.isEmpty()) {
+        if (QStandardPaths::isTestModeEnabled()) {
+            return;
+        }
+        resolvedPath = DictationCoordinator::historyFilePath();
+    }
+
+    QLockFile lock(resolvedPath + u".lock"_s);
+    lock.setStaleLockTime(5000);
+    const bool locked = lock.tryLock(2000);
+
+    QFile file(resolvedPath);
+    if (file.exists()) {
+        file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    }
+    if (!file.open(QIODevice::ReadOnly)) {
+        if (locked) {
+            lock.unlock();
+        }
+        return;
+    }
+
+    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+    file.close();
+    if (locked) {
+        lock.unlock();
+    }
+    if (!doc.isArray()) {
+        return;
+    }
+
+    QList<TranscriptionRecord> loadedRecords;
+    const QJsonArray arr = doc.array();
+    for (const auto val : arr) {
+        if (!val.isObject()) {
+            continue;
+        }
+        const QJsonObject obj = val.toObject();
+        const QString text = obj.value(u"text"_s).toString();
+        if (text.trimmed().isEmpty()) {
+            continue;
+        }
+        QString id = obj.value(u"id"_s).toString();
+        if (id.isEmpty()) {
+            id = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        }
+        const QString tsStr = obj.value(u"timestamp"_s).toString();
+        QDateTime ts = QDateTime::fromString(tsStr, Qt::ISODate);
+        if (!ts.isValid()) {
+            ts = QDateTime::currentDateTimeUtc();
+        }
+        loadedRecords.append(TranscriptionRecord {.id = id, .timestamp = ts, .text = text});
+    }
+
+    m_sourceModel.setRecords(loadedRecords);
 }
 
 int TranscriptionModel::count() const {
@@ -126,12 +219,17 @@ void TranscriptionModel::addRecord(const QString& text) {
 
 void TranscriptionModel::clearAll() {
     m_sourceModel.clearAll();
+    auto* client = DaemonClient::instance();
+    if (client && client->isConnected()) {
+        client->clearHistory();
+    } else {
+        DictationCoordinator::removeHistoryFile();
+    }
 }
 
 void TranscriptionModel::copyToClipboard(const QString& text) {
-    if (auto* clip = QGuiApplication::clipboard()) {
-        clip->setText(text);
-    }
+    ClipboardManager clipboardManager;
+    clipboardManager.setText(text, false);
 }
 
 bool TranscriptionModel::filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const {

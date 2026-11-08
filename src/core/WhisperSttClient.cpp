@@ -74,7 +74,10 @@ void WhisperSttClient::setModelManager(WhisperModelManager* manager) {
     m_modelManager = manager;
 
     if (m_modelManager) {
-        connect(m_modelManager, &WhisperModelManager::selectedModelChanged, this, &WhisperSttClient::checkModelStatus);
+        connect(m_modelManager, &WhisperModelManager::selectedModelChanged, this, [this]() {
+            m_explicitlyUnloaded = false;
+            checkModelStatus();
+        });
         connect(m_modelManager, &WhisperModelManager::modelStatusChanged, this, &WhisperSttClient::checkModelStatus);
     }
 
@@ -129,6 +132,10 @@ QString WhisperSttClient::modelPath() const {
     return resolveModelPath();
 }
 
+void WhisperSttClient::loadSettings() {
+    checkModelStatus();
+}
+
 QString WhisperSttClient::loadedModelPath() const {
     return m_loadedModelPath;
 }
@@ -158,13 +165,17 @@ bool WhisperSttClient::isBusy() const {
 }
 
 void WhisperSttClient::activate() {
-    if (isModelInstalled() && (!m_modelLoaded || m_loadedModelPath != resolveModelPath())) {
+    m_active = true;
+    m_explicitlyUnloaded = false;
+    if (isModelInstalled() && (!m_modelLoaded || m_loadedModelPath != resolveModelPath()) &&
+        m_activeLoadRequestId == 0) {
         loadModel();
     }
     emit readyChanged();
 }
 
 void WhisperSttClient::deactivate() {
+    m_active = false;
     cancel();
     unloadModel();
     emit readyChanged();
@@ -180,12 +191,22 @@ void WhisperSttClient::checkModelStatus() {
             unloadModel();
         } else if (m_loadedModelPath != targetPath) {
             if (isModelInstalled()) {
-                qCDebug(lcSpeech) << "WhisperSttClient: Model selection changed, reloading to target:" << targetPath;
-                loadModel(targetPath);
+                if (m_active && !m_explicitlyUnloaded) {
+                    if (m_activeLoadRequestId == 0 || m_pendingLoadPath != targetPath) {
+                        qCDebug(lcSpeech)
+                            << "WhisperSttClient: Model selection changed, reloading to target:" << targetPath;
+                        loadModel(targetPath);
+                    }
+                }
             } else {
                 qCDebug(lcSpeech) << "WhisperSttClient: Selected model not installed, unloading current model";
                 unloadModel();
             }
+        }
+    } else if (m_active && isModelInstalled() && !m_explicitlyUnloaded) {
+        if (m_activeLoadRequestId == 0 || m_pendingLoadPath != targetPath) {
+            qCDebug(lcSpeech) << "WhisperSttClient: Installed model detected, loading target:" << targetPath;
+            loadModel(targetPath);
         }
     }
 
@@ -194,20 +215,21 @@ void WhisperSttClient::checkModelStatus() {
 }
 
 void WhisperSttClient::loadModel(const QString& customPath) {
+    m_explicitlyUnloaded = false;
+    m_activeUnloadRequestId = 0;
     const QString path = customPath.isEmpty() ? resolveModelPath() : customPath;
     if (m_worker && m_activeLoadRequestId > 0) {
         m_worker->cancelLoad(m_activeLoadRequestId);
     }
     const uint64_t loadId = m_nextLoadRequestId++;
     m_activeLoadRequestId = loadId;
-
-    if (m_worker) {
-        m_worker->resetAbort();
-    }
+    m_pendingLoadPath = path;
 
     if (!QFile::exists(path)) {
         const QString err = tr("Whisper model file not found at %1. Please download it in Model Settings.").arg(path);
         setLastError(err);
+        m_activeLoadRequestId = 0;
+        m_pendingLoadPath.clear();
         m_modelLoaded = false;
         m_loadedModelPath.clear();
         m_computeDevice.clear();
@@ -222,10 +244,14 @@ void WhisperSttClient::loadModel(const QString& customPath) {
 }
 
 void WhisperSttClient::unloadModel() {
+    m_explicitlyUnloaded = true;
     if (m_worker && m_activeLoadRequestId > 0) {
         m_worker->cancelLoad(m_activeLoadRequestId);
     }
-    m_activeLoadRequestId = m_nextLoadRequestId++;
+    m_activeLoadRequestId = 0;
+    m_pendingLoadPath.clear();
+    const uint64_t unloadId = m_nextUnloadRequestId++;
+    m_activeUnloadRequestId = unloadId;
     m_modelLoaded = false;
     m_loadedModelPath.clear();
     m_computeDevice.clear();
@@ -233,7 +259,7 @@ void WhisperSttClient::unloadModel() {
     if (m_worker) {
         m_worker->cancel(0);
     }
-    emit requestUnloadModel();
+    emit requestUnloadModel(unloadId);
 }
 
 void WhisperSttClient::transcribe(const QByteArray& wavData) {
@@ -289,6 +315,8 @@ void WhisperSttClient::onWorkerModelLoaded(uint64_t loadRequestId, const QString
         return;
     }
 
+    m_activeLoadRequestId = 0;
+    m_pendingLoadPath.clear();
     m_modelLoaded = success;
     m_computeDevice = activeDevice;
     if (!success) {
@@ -304,9 +332,22 @@ void WhisperSttClient::onWorkerModelLoaded(uint64_t loadRequestId, const QString
     emit modelStatusChanged();
     emit computeDeviceChanged();
     emit readyChanged();
+
+    if (m_active && !m_explicitlyUnloaded && isModelInstalled()) {
+        const QString currentTarget = resolveModelPath();
+        if (currentTarget != modelPath) {
+            loadModel(currentTarget);
+        }
+    }
 }
 
-void WhisperSttClient::onWorkerModelUnloaded() {
+void WhisperSttClient::onWorkerModelUnloaded(uint64_t unloadRequestId) {
+    if (m_activeLoadRequestId > 0 || (unloadRequestId != 0 && unloadRequestId != m_activeUnloadRequestId)) {
+        qCDebug(lcSpeech) << "WhisperSttClient: Discarding stale model unloaded event for request" << unloadRequestId;
+        return;
+    }
+
+    m_activeUnloadRequestId = 0;
     m_modelLoaded = false;
     m_loadedModelPath.clear();
     m_computeDevice.clear();

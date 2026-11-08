@@ -46,7 +46,7 @@ repos:
       - id: qml-aot-check
         name: QML AOT Compilation Check (local build)
         description: Check if QML files maintain 100% AOT compilation (skipped if no build dir)
-        entry: bash scripts/ci/check-aot-stats.sh
+        entry: env STRICT_AOT=1 bash scripts/ci/check-aot-stats.sh
         language: system
         files: ^src/ui/.*\.qml$
         pass_filenames: false

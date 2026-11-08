@@ -1,7 +1,6 @@
 #pragma once
 
 #include <QObject>
-#include <QQmlEngine>
 #include <QString>
 
 #include <optional>
@@ -13,8 +12,6 @@ class DaemonConnector;
 
 class SystemHealthMonitor : public QObject {
     Q_OBJECT
-    QML_ELEMENT
-    QML_SINGLETON
 
     Q_PROPERTY(bool systemShortcutHasIssue READ systemShortcutHasIssue NOTIFY systemHealthChanged FINAL)
     Q_PROPERTY(bool systemShortcutSupported READ systemShortcutSupported NOTIFY systemHealthChanged FINAL)

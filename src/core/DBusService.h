@@ -17,6 +17,7 @@ public:
     bool isRegistered() const;
 
     static bool sendRemoteCommand(const QString& method);
+    static bool isRemoteRunning();
 
     inline static constexpr QStringView kDbusServiceName = u"io.github.qtscribe.SpeechService";
     inline static constexpr QStringView kDbusObjectPath = u"/io/github/qtscribe/SpeechService";

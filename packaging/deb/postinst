@@ -13,6 +13,9 @@ case "$1" in
             if [ -f "/opt/qtscribe/bin/qtscribe" ]; then
                 ln -sf /opt/qtscribe/bin/qtscribe /usr/bin/qtscribe
             fi
+            if [ -f "/opt/qtscribe/bin/qtscribed" ]; then
+                ln -sf /opt/qtscribe/bin/qtscribed /usr/bin/qtscribed
+            fi
             if [ -f "/opt/qtscribe/bin/keyinjectord" ]; then
                 ln -sf /opt/qtscribe/bin/keyinjectord /usr/bin/keyinjectord
             fi

@@ -23,6 +23,7 @@ endif()
 set(QTSCRIBE_TEST_ENVIRONMENT
     "QT_QPA_PLATFORM=offscreen"
     "QT_MEDIA_BACKEND=null"
+    "QTSCRIBE_DISABLE_REMOTE_ATTACH=1"
     "LD_LIBRARY_PATH=${QT_TEST_LD_PREPEND}$ENV{LD_LIBRARY_PATH}"
 )
 
@@ -58,6 +59,7 @@ function(add_qtscribe_test name)
         PRIVATE
             ${CMAKE_SOURCE_DIR}/src
             ${CMAKE_SOURCE_DIR}/src/core
+            ${CMAKE_SOURCE_DIR}/src/ui
             ${ARG_INCLUDES}
     )
 
@@ -97,6 +99,11 @@ add_qtscribe_test(whisper_model_manager
 
 add_qtscribe_test(dictation_coordinator
     TEST_NAME DictationCoordinatorTest
+    SOURCES
+        test_dictation_coordinator.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/DictationPadModel.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/TranscriptionModel.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/DaemonClient.cpp
     LIBRARIES Qt6::Gui Qt6::Multimedia Qt6::Network Qt6::DBus
 )
 
@@ -149,6 +156,13 @@ add_qtscribe_test(application_context
 
 add_qtscribe_test(cloud_provider_model
     TEST_NAME CloudProviderModelTest
+    SOURCES
+        test_cloud_provider_model.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/CloudProviderModel.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/DaemonClient.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/NavigationModel.cpp
+    LIBRARIES
+        Qt6::DBus
 )
 
 add_qtscribe_test(gemini_stt_client
@@ -173,7 +187,13 @@ add_qtscribe_test(text_injector
 
 add_qtscribe_test(daemon_diagnostic_model
     TEST_NAME DaemonDiagnosticModelTest
-    LIBRARIES Qt6::Network
+    SOURCES
+        test_daemon_diagnostic_model.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/DaemonDiagnosticModel.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/DaemonClient.cpp
+    LIBRARIES
+        Qt6::Network
+        Qt6::DBus
 )
 
 add_qtscribe_test(composite_stt_engine
@@ -193,7 +213,13 @@ add_qtscribe_test(cloud_response_parser
 
 add_qtscribe_test(transcription_model
     TEST_NAME TranscriptionModelTest
-    LIBRARIES Qt6::Gui
+    SOURCES
+        test_transcription_model.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/TranscriptionModel.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/DaemonClient.cpp
+    LIBRARIES
+        Qt6::Gui
+        Qt6::DBus
 )
 
 add_qtscribe_test(api_key_store

@@ -1,5 +1,6 @@
 #include "ApiKeyStore.h"
 
+#include "DBusService.h"
 #include "LoggingCategories.h"
 
 #include <QSettings>
@@ -99,9 +100,14 @@ void ApiKeyStore::loadApiKeyFromKeychain() {
             if (!key.isEmpty()) {
                 qCDebug(lcNetwork) << "API key loaded successfully from system keychain (key length:" << key.size()
                                    << ")";
-                m_apiKey = key;
-                emit apiKeyChanged();
-                emit apiKeySetChanged();
+                if (m_apiKey != key) {
+                    const bool wasSet = apiKeySet();
+                    m_apiKey = key;
+                    emit apiKeyChanged();
+                    if (wasSet != apiKeySet()) {
+                        emit apiKeySetChanged();
+                    }
+                }
                 return;
             }
         } else if (rJob->error() == QKeychain::EntryNotFound) {
@@ -130,11 +136,21 @@ void ApiKeyStore::loadApiKeyFromSettingsFallback() {
     }
     if (!key.isEmpty()) {
         qCDebug(lcNetwork) << "API key loaded from QSettings fallback (key length:" << key.size() << ")";
-        m_apiKey = key;
-        emit apiKeyChanged();
-        emit apiKeySetChanged();
+        if (m_apiKey != key) {
+            const bool wasSet = apiKeySet();
+            m_apiKey = key;
+            emit apiKeyChanged();
+            if (wasSet != apiKeySet()) {
+                emit apiKeySetChanged();
+            }
+        }
     } else {
         qCDebug(lcNetwork) << "No API key found in QSettings fallback";
+        if (!m_apiKey.isEmpty()) {
+            m_apiKey.clear();
+            emit apiKeyChanged();
+            emit apiKeySetChanged();
+        }
     }
 }
 
@@ -158,6 +174,7 @@ void ApiKeyStore::saveApiKeyToKeychain(const QString& key) {
                 settings.remove(kLegacySettingsApiKey.toString());
             }
         }
+        DBusService::sendRemoteCommand(u"reloadSettings"_s);
     });
 
     writeJob->start();
@@ -180,6 +197,7 @@ void ApiKeyStore::deleteApiKeyFromKeychain() {
         } else {
             qCDebug(lcNetwork) << "API key deleted from system keychain";
         }
+        DBusService::sendRemoteCommand(u"reloadSettings"_s);
     });
 
     deleteJob->start();

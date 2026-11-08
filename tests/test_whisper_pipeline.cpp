@@ -232,6 +232,160 @@ private slots:
         QVERIFY(client.loadedModelPath().isEmpty());
     }
 
+    void testCheckModelStatusLoadsUnloadedModel() {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+        WhisperModelManager manager;
+        manager.setModelsDirectory(tempDir.path());
+
+        const QString modelFile = tempDir.path() + u"/ggml-base.en.bin"_s;
+        QFile f(modelFile);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("mock model content");
+        f.close();
+
+        manager.scanInstalledModels();
+        manager.setSelectedModelId(u"base.en"_s);
+        QVERIFY(manager.isSelectedModelInstalled());
+
+        WhisperSttClient client;
+        client.setModelManager(&manager);
+        QVERIFY(client.isModelInstalled());
+
+        QSignalSpy spy(&client, &WhisperSttClient::requestLoadModel);
+        client.checkModelStatus();
+        QCOMPARE(spy.count(), 0);
+
+        client.activate();
+        QCOMPARE(spy.count(), 1);
+        QCOMPARE(spy.first().at(1).toString(), modelFile);
+
+        client.unloadModel();
+        spy.clear();
+        client.checkModelStatus();
+        QCOMPARE(spy.count(), 0);
+
+        client.loadModel();
+        QCOMPARE(spy.count(), 1);
+    }
+
+    void testModelSelectionDuringPendingLoad() {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+        WhisperModelManager manager;
+        manager.setModelsDirectory(tempDir.path());
+
+        const QString modelFileA = tempDir.path() + u"/ggml-base.en.bin"_s;
+        QFile fa(modelFileA);
+        QVERIFY(fa.open(QIODevice::WriteOnly));
+        fa.write("model A");
+        fa.close();
+
+        const QString modelFileB = tempDir.path() + u"/ggml-tiny.en.bin"_s;
+        QFile fb(modelFileB);
+        QVERIFY(fb.open(QIODevice::WriteOnly));
+        fb.write("model B");
+        fb.close();
+
+        manager.scanInstalledModels();
+        manager.setSelectedModelId(u"base.en"_s);
+
+        WhisperSttClient client;
+        client.setModelManager(&manager);
+        client.activate();
+
+        QSignalSpy spy(&client, &WhisperSttClient::requestLoadModel);
+        QCOMPARE(client.modelPath(), modelFileA);
+
+        manager.setSelectedModelId(u"tiny.en"_s);
+        QVERIFY(spy.count() >= 1);
+        QCOMPARE(spy.last().at(1).toString(), modelFileB);
+    }
+
+    void testUnloadDoesNotEraseNewerLoad() {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+        const QString modelFile = tempDir.path() + u"/ggml-tiny.en.bin"_s;
+        QFile f(modelFile);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("model content");
+        f.close();
+
+        WhisperSttClient client;
+        client.unloadModel();
+
+        QSignalSpy spy(&client, &WhisperSttClient::requestLoadModel);
+        client.loadModel(modelFile);
+        QCOMPARE(spy.count(), 1);
+        const uint64_t loadId = spy.first().at(0).toULongLong();
+        QVERIFY(loadId > 0);
+
+        QMetaObject::invokeMethod(&client, "onWorkerModelUnloaded", Q_ARG(uint64_t, 9999));
+
+        QMetaObject::invokeMethod(&client, "onWorkerModelLoaded", Q_ARG(uint64_t, loadId), Q_ARG(QString, modelFile),
+                                  Q_ARG(bool, true), Q_ARG(QString, QString()), Q_ARG(QString, u"CPU"_s));
+        QVERIFY(client.isModelLoaded());
+        QCOMPARE(client.loadedModelPath(), modelFile);
+    }
+
+    void testFailedLoadDoesNotRepeatForever() {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+        WhisperModelManager manager;
+        manager.setModelsDirectory(tempDir.path());
+
+        const QString modelFile = tempDir.path() + u"/ggml-tiny.en.bin"_s;
+        QFile f(modelFile);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("invalid content");
+        f.close();
+
+        manager.scanInstalledModels();
+        manager.setSelectedModelId(u"tiny.en"_s);
+
+        WhisperSttClient client;
+        client.setModelManager(&manager);
+        QSignalSpy spy(&client, &WhisperSttClient::requestLoadModel);
+        client.activate();
+        QCOMPARE(spy.count(), 1);
+        const uint64_t loadId = spy.first().at(0).toULongLong();
+
+        QMetaObject::invokeMethod(&client, "onWorkerModelLoaded", Q_ARG(uint64_t, loadId), Q_ARG(QString, modelFile),
+                                  Q_ARG(bool, false), Q_ARG(QString, u"Corrupt model"_s), Q_ARG(QString, QString()));
+
+        QCOMPARE(spy.count(), 1);
+        QVERIFY(!client.isModelLoaded());
+    }
+
+    void testLoadRetryAfterUnload() {
+        QTemporaryDir tempDir;
+        QVERIFY(tempDir.isValid());
+        const QString modelFile = tempDir.path() + u"/ggml-tiny.en.bin"_s;
+        QFile f(modelFile);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write("content");
+        f.close();
+
+        WhisperSttClient client;
+        QSignalSpy spy(&client, &WhisperSttClient::requestLoadModel);
+
+        client.loadModel(modelFile);
+        QCOMPARE(spy.count(), 1);
+        const uint64_t firstLoadId = spy.first().at(0).toULongLong();
+
+        client.loadModel(modelFile);
+        QCOMPARE(spy.count(), 2);
+        const uint64_t secondLoadId = spy.at(1).at(0).toULongLong();
+        QVERIFY(secondLoadId > firstLoadId);
+
+        WhisperWorker worker;
+        worker.cancel(0);
+        QSignalSpy workerSpy(&worker, &WhisperWorker::modelLoaded);
+        worker.loadModel(secondLoadId, modelFile, false);
+        QCOMPARE(workerSpy.count(), 1);
+        QCOMPARE(workerSpy.first().at(0).toULongLong(), secondLoadId);
+    }
+
     void testWorkerAbortLogic() {
         WhisperWorker worker;
 

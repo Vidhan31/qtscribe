@@ -1,8 +1,8 @@
 #pragma once
 
 #include <QObject>
-#include <QQmlEngine>
 #include <QString>
+#include <QtQmlIntegration/qqmlintegration.h>
 
 class AbstractLlmClient : public QObject {
     Q_OBJECT

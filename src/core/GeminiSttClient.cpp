@@ -24,6 +24,8 @@
 using namespace Qt::StringLiterals;
 using namespace std::chrono_literals;
 
+static inline GeminiSttClient* s_geminiInstance = nullptr;
+
 #ifndef QTSCRIBE_VERSION
 #define QTSCRIBE_VERSION "0.0.0-dev"
 #endif
@@ -39,6 +41,9 @@ GeminiSttClient::GeminiSttClient(QObject* parent)
     , m_nam(new QNetworkAccessManager(this))
     , m_retryCountdownTimer(new QTimer(this))
     , m_retryTimer(new QTimer(this)) {
+    if (!s_geminiInstance) {
+        s_geminiInstance = this;
+    }
     NetworkTlsHelper::ensureSystemProxyConfigured();
 
     m_nam->setTransferTimeout(20s);
@@ -70,16 +75,55 @@ GeminiSttClient::GeminiSttClient(QObject* parent)
     setKeyStore(defaultStore);
     m_ownsKeyStore = true;
 
+    loadSettings();
+}
+
+GeminiSttClient::~GeminiSttClient() {
+    if (s_geminiInstance == this) {
+        s_geminiInstance = nullptr;
+    }
+}
+
+GeminiSttClient* GeminiSttClient::instance() {
+    return s_geminiInstance;
+}
+
+GeminiSttClient* GeminiSttClient::create(QQmlEngine* /*qmlEngine*/, QJSEngine* /*jsEngine*/) {
+    if (!s_geminiInstance) {
+        s_geminiInstance = new GeminiSttClient();
+    }
+    return s_geminiInstance;
+}
+
+void GeminiSttClient::loadSettings() {
     QSettings settings;
-    m_selectedModel = settings.value(u"Gemini/Model"_s, kDefaultModel.toString()).toString();
-    if (m_selectedModel.trimmed().isEmpty()) {
-        m_selectedModel = kDefaultModel.toString();
+    QString model = settings.value(u"Gemini/Model"_s, kDefaultModel.toString()).toString();
+    if (model.trimmed().isEmpty()) {
+        model = kDefaultModel.toString();
     }
-    m_mode = settings.value(u"Gemini/Mode"_s, kDefaultMode.toString()).toString();
-    if (m_mode != u"smart"_s && m_mode != u"verbatim"_s) {
-        m_mode = kDefaultMode.toString();
+    if (m_selectedModel != model) {
+        m_selectedModel = model;
+        emit selectedModelChanged();
     }
-    m_customVocabulary = settings.value(u"Gemini/CustomVocabulary"_s, QString()).toString();
+
+    QString modeVal = settings.value(u"Gemini/Mode"_s, kDefaultMode.toString()).toString();
+    if (modeVal != u"smart"_s && modeVal != u"verbatim"_s) {
+        modeVal = kDefaultMode.toString();
+    }
+    if (m_mode != modeVal) {
+        m_mode = modeVal;
+        emit modeChanged();
+    }
+
+    QString vocab = settings.value(u"Gemini/CustomVocabulary"_s, QString()).toString();
+    if (m_customVocabulary != vocab) {
+        m_customVocabulary = vocab;
+        emit customVocabularyChanged();
+    }
+
+    if (m_keyStore) {
+        m_keyStore->loadApiKey();
+    }
 }
 
 void GeminiSttClient::setKeyStore(ApiKeyStore* store) {
@@ -190,8 +234,14 @@ void GeminiSttClient::setSelectedModel(const QString& model) {
     }
     if (m_selectedModel != trimmed) {
         m_selectedModel = trimmed;
-        QSettings settings;
-        settings.setValue(u"Gemini/Model"_s, m_selectedModel);
+        {
+            QSettings settings;
+            settings.setValue(u"Gemini/Model"_s, m_selectedModel);
+            settings.sync();
+            if (settings.status() != QSettings::NoError) {
+                qWarning() << "GeminiSttClient: Failed to save Gemini/Model:" << settings.status();
+            }
+        }
         emit selectedModelChanged();
     }
 }
@@ -207,8 +257,14 @@ void GeminiSttClient::setMode(const QString& mode) {
     }
     if (m_mode != trimmed) {
         m_mode = trimmed;
-        QSettings settings;
-        settings.setValue(u"Gemini/Mode"_s, m_mode);
+        {
+            QSettings settings;
+            settings.setValue(u"Gemini/Mode"_s, m_mode);
+            settings.sync();
+            if (settings.status() != QSettings::NoError) {
+                qWarning() << "GeminiSttClient: Failed to save Gemini/Mode:" << settings.status();
+            }
+        }
         emit modeChanged();
     }
 }
@@ -220,8 +276,14 @@ QString GeminiSttClient::customVocabulary() const {
 void GeminiSttClient::setCustomVocabulary(const QString& vocab) {
     if (m_customVocabulary != vocab) {
         m_customVocabulary = vocab;
-        QSettings settings;
-        settings.setValue(u"Gemini/CustomVocabulary"_s, m_customVocabulary);
+        {
+            QSettings settings;
+            settings.setValue(u"Gemini/CustomVocabulary"_s, m_customVocabulary);
+            settings.sync();
+            if (settings.status() != QSettings::NoError) {
+                qWarning() << "GeminiSttClient: Failed to save Gemini/CustomVocabulary:" << settings.status();
+            }
+        }
         emit customVocabularyChanged();
     }
 }

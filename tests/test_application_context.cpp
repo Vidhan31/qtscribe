@@ -62,7 +62,6 @@ void TestApplicationContext::testHeadlessInitialization() {
     QVERIFY(context.dictationCoordinator() != nullptr);
     QVERIFY(context.compositeSttEngine() != nullptr);
     QVERIFY(context.notificationPresenter() != nullptr);
-    QVERIFY(context.dictationPadModel() != nullptr);
     QVERIFY(context.systemHealthMonitor() != nullptr);
     QVERIFY(context.audioFeedbackPlayer() != nullptr);
     QVERIFY(context.apiKeyStore() != nullptr);
@@ -72,13 +71,10 @@ void TestApplicationContext::testHeadlessInitialization() {
     QVERIFY(context.geminiSttClient() != nullptr);
     QVERIFY(context.cloudSttRouter() != nullptr);
     QVERIFY(context.llmClient() != nullptr);
-    QVERIFY(context.cloudProviderModel() != nullptr);
     QVERIFY(context.audioRecorder() != nullptr);
     QVERIFY(context.shortcutManager() != nullptr);
     QVERIFY(context.textInjector() != nullptr);
     QVERIFY(context.daemonConnector() != nullptr);
-    QVERIFY(context.daemonDiagnosticModel() != nullptr);
-    QVERIFY(context.historyModel() != nullptr);
 }
 
 void TestApplicationContext::testSubsystemWiringIntegrity() {
@@ -91,10 +87,7 @@ void TestApplicationContext::testSubsystemWiringIntegrity() {
     QCOMPARE(context.notificationPresenter()->dictationCoordinator(), context.dictationCoordinator());
     QCOMPARE(context.notificationPresenter()->compositeSttEngine(), context.compositeSttEngine());
     QVERIFY(context.llmClient() != nullptr);
-    QCOMPARE(context.cloudSttRouter()->cloudProviderModel(), context.cloudProviderModel());
     QVERIFY(context.cloudSttRouter()->activeClient() != nullptr);
-    QCOMPARE(context.daemonDiagnosticModel()->daemonConnector(), context.daemonConnector());
-    QCOMPARE(context.daemonDiagnosticModel()->textInjector(), context.textInjector());
 }
 
 void TestApplicationContext::testRepeatedInitializeIsNoOp() {

@@ -15,8 +15,10 @@
 #include "SystemHealthMonitor.h"
 
 #include <QCoreApplication>
+#include <QFile>
 #include <QSettings>
 #include <QSignalSpy>
+#include <QStandardPaths>
 #include <QTest>
 
 using namespace Qt::StringLiterals;
@@ -208,7 +210,11 @@ private slots:
     void testSystemHealthMonitorDirect();
     void testAutoSwitchOfflineWhenNetworkLost();
     void testAutoSwitchOfflineDeferredDuringRecording();
+    void testStartRecordingPreservesOfflineFallback();
+    void testHistoryFilePermissionsAndSessionCleanup();
+    void testClearHistory();
     void testNotificationIntegration();
+    void testModelControlMethods();
 
 private:
     DictationCoordinator* m_coordinator = nullptr;
@@ -229,6 +235,7 @@ private:
 };
 
 void TestDictationCoordinator::initTestCase() {
+    QStandardPaths::setTestModeEnabled(true);
     QCoreApplication::setOrganizationName(u"QTranscribeTestOrg"_s);
     QCoreApplication::setApplicationName(u"QTranscribeTestApp_DictationCoordinator"_s);
     QSettings settings;
@@ -238,6 +245,7 @@ void TestDictationCoordinator::initTestCase() {
 void TestDictationCoordinator::cleanupTestCase() {
     QSettings settings;
     settings.clear();
+    QStandardPaths::setTestModeEnabled(false);
 }
 
 void TestDictationCoordinator::init() {
@@ -344,6 +352,7 @@ void TestDictationCoordinator::testRecordingLifecycleSuccess() {
     QCOMPARE(m_coordinator->dictationState(), DictationCoordinator::DictationState::Recording);
     QVERIFY(m_coordinator->recording());
     QVERIFY(m_coordinator->isBusy());
+    QVERIFY(m_coordinator->canRecord());
 
     m_coordinator->stopRecording();
 
@@ -565,6 +574,72 @@ void TestDictationCoordinator::testAutoSwitchOfflineDeferredDuringRecording() {
     QCOMPARE(m_coordinator->activeBackend(), DictationCoordinator::TranscriptionBackend::WhisperCpp);
 }
 
+void TestDictationCoordinator::testStartRecordingPreservesOfflineFallback() {
+    m_coordinator->setActiveBackend(DictationCoordinator::TranscriptionBackend::Cloud, true);
+    QCOMPARE(m_coordinator->activeBackend(), DictationCoordinator::TranscriptionBackend::Cloud);
+
+    m_healthMonitor->setNetworkOnlineForTesting(false);
+    QCOMPARE(m_coordinator->activeBackend(), DictationCoordinator::TranscriptionBackend::WhisperCpp);
+    QVERIFY(m_sttEngine->isAutoSwitchedToOffline());
+
+    m_coordinator->startRecording();
+    QCOMPARE(m_coordinator->activeBackend(), DictationCoordinator::TranscriptionBackend::WhisperCpp);
+    QVERIFY(m_sttEngine->isAutoSwitchedToOffline());
+    m_coordinator->stopRecording();
+
+    m_coordinator->loadSettings();
+    QCOMPARE(m_coordinator->activeBackend(), DictationCoordinator::TranscriptionBackend::WhisperCpp);
+    QVERIFY(m_sttEngine->isAutoSwitchedToOffline());
+
+    m_coordinator->reloadSettings();
+    QCOMPARE(m_coordinator->activeBackend(), DictationCoordinator::TranscriptionBackend::WhisperCpp);
+    QVERIFY(m_sttEngine->isAutoSwitchedToOffline());
+
+    m_healthMonitor->setNetworkOnlineForTesting(true);
+    QCOMPARE(m_coordinator->activeBackend(), DictationCoordinator::TranscriptionBackend::Cloud);
+    QVERIFY(!m_sttEngine->isAutoSwitchedToOffline());
+}
+
+void TestDictationCoordinator::testHistoryFilePermissionsAndSessionCleanup() {
+    const QString path = DictationCoordinator::historyFilePath();
+    DictationCoordinator::removeHistoryFile();
+    QVERIFY(!QFile::exists(path));
+
+    m_coordinator->completeTranscription(u"Confidential transcription text"_s);
+    QVERIFY(QFile::exists(path));
+
+    const QFile::Permissions perms = QFile::permissions(path);
+    QVERIFY(perms.testFlag(QFileDevice::ReadOwner));
+    QVERIFY(perms.testFlag(QFileDevice::WriteOwner));
+    QVERIFY(!perms.testFlag(QFileDevice::ReadGroup));
+    QVERIFY(!perms.testFlag(QFileDevice::WriteGroup));
+    QVERIFY(!perms.testFlag(QFileDevice::ReadOther));
+    QVERIFY(!perms.testFlag(QFileDevice::WriteOther));
+
+    m_coordinator->quitApp();
+    QVERIFY(!QFile::exists(path));
+}
+
+void TestDictationCoordinator::testClearHistory() {
+    const QString path = DictationCoordinator::historyFilePath();
+    DictationCoordinator::removeHistoryFile();
+    QVERIFY(!QFile::exists(path));
+
+    m_coordinator->completeTranscription(u"Sample dictation for clearHistory"_s);
+    QVERIFY(QFile::exists(path));
+    QCOMPARE(m_coordinator->lastTranscription(), u"Sample dictation for clearHistory"_s);
+
+    QSignalSpy clearedSpy(m_coordinator, &DictationCoordinator::historyCleared);
+    QSignalSpy lastTransSpy(m_coordinator, &DictationCoordinator::lastTranscriptionChanged);
+
+    m_coordinator->clearHistory();
+
+    QVERIFY(!QFile::exists(path));
+    QCOMPARE(clearedSpy.count(), 1);
+    QCOMPARE(lastTransSpy.count(), 1);
+    QVERIFY(m_coordinator->lastTranscription().isEmpty());
+}
+
 void TestDictationCoordinator::testNotificationIntegration() {
     m_coordinator->setActiveBackend(DictationCoordinator::TranscriptionBackend::WhisperCpp);
     m_whisperClient->m_failNext = true;
@@ -599,6 +674,26 @@ void TestDictationCoordinator::testNotificationIntegration() {
     m_notificationService->onActionInvoked(100, u"settings"_s);
     QCOMPARE(navSpy.count(), 1);
     QCOMPARE(navSpy.first().at(0).toString(), u"system"_s);
+}
+
+void TestDictationCoordinator::testModelControlMethods() {
+    QVERIFY(!m_coordinator->isModelLoaded());
+    QVERIFY(!m_coordinator->isModelBusy());
+    QVERIFY(m_coordinator->loadedModelPath().isEmpty());
+
+    m_coordinator->loadModel();
+    m_coordinator->unloadModel();
+    m_coordinator->checkModelStatus();
+
+    m_coordinator->startRecording();
+    QVERIFY(m_coordinator->recording());
+    QVERIFY(m_coordinator->isModelBusy());
+
+    m_coordinator->unloadModel();
+    m_coordinator->loadModel();
+    QVERIFY(m_coordinator->recording());
+
+    m_coordinator->stopRecording();
 }
 
 int main(int argc, char* argv[]) {

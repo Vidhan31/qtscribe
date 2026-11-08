@@ -4,13 +4,15 @@
 
 #include <QByteArray>
 #include <QPointer>
-#include <QQmlEngine>
 #include <QString>
+#include <QtQmlIntegration/qqmlintegration.h>
 
 class ApiKeyStore;
 class QNetworkAccessManager;
 class QNetworkReply;
 class QTimer;
+class QQmlEngine;
+class QJSEngine;
 struct CloudApiResponse;
 
 class GroqSttClient : public AbstractSttClient {
@@ -25,7 +27,10 @@ class GroqSttClient : public AbstractSttClient {
 
 public:
     explicit GroqSttClient(QObject* parent = nullptr);
-    ~GroqSttClient() override = default;
+    ~GroqSttClient() override;
+
+    static GroqSttClient* instance();
+    static GroqSttClient* create(QQmlEngine* qmlEngine, QJSEngine* jsEngine);
 
     void setKeyStore(ApiKeyStore* store);
     ApiKeyStore* keyStore() const;
@@ -53,6 +58,8 @@ public:
 
     QString customPrompt() const;
     void setCustomPrompt(const QString& prompt);
+
+    void loadSettings();
 
     void activate() override;
     void deactivate() override;

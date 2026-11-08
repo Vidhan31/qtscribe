@@ -149,6 +149,7 @@ RUN set -eux; \
     \
     echo "--- Checking installed binaries in /opt/qtscribe/bin ---"; \
     test -x /opt/qtscribe/bin/qtscribe; \
+    test -x /opt/qtscribe/bin/qtscribed; \
     test -x /opt/qtscribe/bin/keyinjectord; \
     test -f /opt/qtscribe/bin/qt.conf; \
     \
@@ -159,12 +160,18 @@ RUN set -eux; \
     echo "--- Checking symlinks in /usr/bin ---"; \
     test -L /usr/bin/qtscribe; \
     test "$(readlink -f /usr/bin/qtscribe)" = "/opt/qtscribe/bin/qtscribe"; \
+    test -L /usr/bin/qtscribed; \
+    test "$(readlink -f /usr/bin/qtscribed)" = "/opt/qtscribe/bin/qtscribed"; \
     test -L /usr/bin/keyinjectord; \
     test "$(readlink -f /usr/bin/keyinjectord)" = "/opt/qtscribe/bin/keyinjectord"; \
     \
     echo "--- Checking desktop file & icons in /usr/share ---"; \
     test -f /usr/share/applications/io.github.qtscribe.desktop; \
     desktop-file-validate /usr/share/applications/io.github.qtscribe.desktop; \
+    test -f /usr/share/applications/io.github.qtscribe.daemon.desktop; \
+    desktop-file-validate /usr/share/applications/io.github.qtscribe.daemon.desktop; \
+    test -f /etc/xdg/autostart/io.github.qtscribe.daemon.desktop; \
+    desktop-file-validate /etc/xdg/autostart/io.github.qtscribe.daemon.desktop; \
     test -f /usr/share/icons/hicolor/512x512/apps/qtscribe.png; \
     test -f /usr/share/icons/hicolor/512x512/apps/io.github.qtscribe.png; \
     \
@@ -201,6 +208,7 @@ RUN set -eux; \
     echo "--- Testing package removal and cleanup ---"; \
     dpkg -r qtscribe; \
     test ! -e /usr/bin/qtscribe; \
+    test ! -e /usr/bin/qtscribed; \
     test ! -e /usr/bin/keyinjectord; \
     echo "Debian package validation succeeded cleanly!"
 

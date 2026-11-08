@@ -271,6 +271,50 @@ private slots:
         QCOMPARE(res, keyinjectord::AuthResult::UnauthorizedExecutable);
     }
 
+    void testValidateExecutableTopologyAcceptsQtscribed() {
+        const std::filesystem::path selfPath = currentExePath();
+        QVERIFY(!selfPath.empty());
+
+        keyinjectord::AuthResult res = keyinjectord::AuthResult::InvalidFd;
+        std::filesystem::path daemonPath = selfPath.parent_path() / "qtscribed";
+        const bool existed = std::filesystem::exists(daemonPath);
+        if (!existed) {
+            FILE* f = fopen(daemonPath.c_str(), "w");
+            QVERIFY(f != nullptr);
+            fclose(f);
+        }
+
+        bool ok = keyinjectord::validateExecutableTopology(daemonPath, selfPath, &res, true);
+        if (!existed) {
+            std::filesystem::remove(daemonPath);
+        }
+
+        QCOMPARE(res, keyinjectord::AuthResult::Success);
+        QVERIFY(ok);
+    }
+
+    void testValidateExecutableTopologyRejectsQtscribeGui() {
+        const std::filesystem::path selfPath = currentExePath();
+        QVERIFY(!selfPath.empty());
+
+        keyinjectord::AuthResult res = keyinjectord::AuthResult::Success;
+        std::filesystem::path guiPath = selfPath.parent_path() / "qtscribe";
+        const bool existed = std::filesystem::exists(guiPath);
+        if (!existed) {
+            FILE* f = fopen(guiPath.c_str(), "w");
+            QVERIFY(f != nullptr);
+            fclose(f);
+        }
+
+        bool ok = keyinjectord::validateExecutableTopology(guiPath, selfPath, &res, true);
+        if (!existed) {
+            std::filesystem::remove(guiPath);
+        }
+
+        QCOMPARE(res, keyinjectord::AuthResult::UnauthorizedExecutable);
+        QVERIFY(!ok);
+    }
+
     void testValidateExecutableTopologyAcceptsSelfInvocation() {
         const std::filesystem::path selfPath = currentExePath();
         QVERIFY(!selfPath.empty());
@@ -286,7 +330,7 @@ private slots:
 
         std::filesystem::path nestedDir = selfPath.parent_path() / "test_nested_dir";
         std::filesystem::create_directories(nestedDir);
-        std::filesystem::path nestedBinary = nestedDir / "qtscribe";
+        std::filesystem::path nestedBinary = nestedDir / "qtscribed";
 
         FILE* f = fopen(nestedBinary.c_str(), "w");
         QVERIFY(f != nullptr);
@@ -314,7 +358,7 @@ private slots:
         QVERIFY(fSelf != nullptr);
         fclose(fSelf);
 
-        std::filesystem::path mockParent = testDir / "qtscribe";
+        std::filesystem::path mockParent = testDir / "qtscribed";
         FILE* fParent = fopen(mockParent.c_str(), "w");
         QVERIFY(fParent != nullptr);
         fclose(fParent);
@@ -342,7 +386,7 @@ private slots:
         QVERIFY(fSelf != nullptr);
         fclose(fSelf);
 
-        std::filesystem::path mockParent = testDir / "qtscribe";
+        std::filesystem::path mockParent = testDir / "qtscribed";
         FILE* fParent = fopen(mockParent.c_str(), "w");
         QVERIFY(fParent != nullptr);
         fclose(fParent);
@@ -371,7 +415,7 @@ private slots:
         QVERIFY(fSelf != nullptr);
         fclose(fSelf);
 
-        std::filesystem::path mockParent = testDir / "qtscribe";
+        std::filesystem::path mockParent = testDir / "qtscribed";
         FILE* fParent = fopen(mockParent.c_str(), "w");
         QVERIFY(fParent != nullptr);
         fclose(fParent);
@@ -418,7 +462,7 @@ private slots:
         QVERIFY(fSelf != nullptr);
         fclose(fSelf);
 
-        std::filesystem::path mockParent = parentDir / "qtscribe";
+        std::filesystem::path mockParent = parentDir / "qtscribed";
         FILE* fParent = fopen(mockParent.c_str(), "w");
         QVERIFY(fParent != nullptr);
         fclose(fParent);

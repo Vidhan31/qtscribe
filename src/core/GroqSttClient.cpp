@@ -24,6 +24,8 @@
 using namespace Qt::StringLiterals;
 using namespace std::chrono_literals;
 
+static inline GroqSttClient* s_groqInstance = nullptr;
+
 #ifndef QTSCRIBE_VERSION
 #define QTSCRIBE_VERSION "0.0.0-dev"
 #endif
@@ -39,6 +41,9 @@ GroqSttClient::GroqSttClient(QObject* parent)
     , m_nam(new QNetworkAccessManager(this))
     , m_retryCountdownTimer(new QTimer(this))
     , m_retryTimer(new QTimer(this)) {
+    if (!s_groqInstance) {
+        s_groqInstance = this;
+    }
     NetworkTlsHelper::ensureSystemProxyConfigured();
 
     m_nam->setTransferTimeout(15s);
@@ -70,14 +75,52 @@ GroqSttClient::GroqSttClient(QObject* parent)
     setKeyStore(defaultStore);
     m_ownsKeyStore = true;
 
-    QSettings settings;
-    m_selectedModel = settings.value(u"Groq/Model"_s, kDefaultModel.toString()).toString();
-    if (m_selectedModel.isEmpty() ||
-        (m_selectedModel != u"whisper-large-v3-turbo"_s && m_selectedModel != u"whisper-large-v3"_s)) {
-        m_selectedModel = kDefaultModel.toString();
+    loadSettings();
+}
+
+GroqSttClient::~GroqSttClient() {
+    if (s_groqInstance == this) {
+        s_groqInstance = nullptr;
     }
-    m_language = settings.value(u"Groq/Language"_s, QString()).toString();
-    m_customPrompt = settings.value(u"Groq/CustomPrompt"_s, QString()).toString();
+}
+
+GroqSttClient* GroqSttClient::instance() {
+    return s_groqInstance;
+}
+
+GroqSttClient* GroqSttClient::create(QQmlEngine* /*qmlEngine*/, QJSEngine* /*jsEngine*/) {
+    if (!s_groqInstance) {
+        s_groqInstance = new GroqSttClient();
+    }
+    return s_groqInstance;
+}
+
+void GroqSttClient::loadSettings() {
+    QSettings settings;
+    QString model = settings.value(u"Groq/Model"_s, kDefaultModel.toString()).toString();
+    if (model.isEmpty() || (model != u"whisper-large-v3-turbo"_s && model != u"whisper-large-v3"_s)) {
+        model = kDefaultModel.toString();
+    }
+    if (m_selectedModel != model) {
+        m_selectedModel = model;
+        emit selectedModelChanged();
+    }
+
+    QString lang = settings.value(u"Groq/Language"_s, QString()).toString();
+    if (m_language != lang) {
+        m_language = lang;
+        emit languageChanged();
+    }
+
+    QString prompt = settings.value(u"Groq/CustomPrompt"_s, QString()).toString();
+    if (m_customPrompt != prompt) {
+        m_customPrompt = prompt;
+        emit customPromptChanged();
+    }
+
+    if (m_keyStore) {
+        m_keyStore->loadApiKey();
+    }
 }
 
 void GroqSttClient::setKeyStore(ApiKeyStore* store) {
@@ -184,8 +227,14 @@ void GroqSttClient::setSelectedModel(const QString& model) {
     }
     if (m_selectedModel != trimmed) {
         m_selectedModel = trimmed;
-        QSettings settings;
-        settings.setValue(u"Groq/Model"_s, m_selectedModel);
+        {
+            QSettings settings;
+            settings.setValue(u"Groq/Model"_s, m_selectedModel);
+            settings.sync();
+            if (settings.status() != QSettings::NoError) {
+                qWarning() << "GroqSttClient: Failed to save Groq/Model:" << settings.status();
+            }
+        }
         emit selectedModelChanged();
     }
 }
@@ -198,8 +247,14 @@ void GroqSttClient::setLanguage(const QString& lang) {
     QString trimmed = lang.trimmed();
     if (m_language != trimmed) {
         m_language = trimmed;
-        QSettings settings;
-        settings.setValue(u"Groq/Language"_s, m_language);
+        {
+            QSettings settings;
+            settings.setValue(u"Groq/Language"_s, m_language);
+            settings.sync();
+            if (settings.status() != QSettings::NoError) {
+                qWarning() << "GroqSttClient: Failed to save Groq/Language:" << settings.status();
+            }
+        }
         emit languageChanged();
     }
 }
@@ -211,8 +266,14 @@ QString GroqSttClient::customPrompt() const {
 void GroqSttClient::setCustomPrompt(const QString& prompt) {
     if (m_customPrompt != prompt) {
         m_customPrompt = prompt;
-        QSettings settings;
-        settings.setValue(u"Groq/CustomPrompt"_s, m_customPrompt);
+        {
+            QSettings settings;
+            settings.setValue(u"Groq/CustomPrompt"_s, m_customPrompt);
+            settings.sync();
+            if (settings.status() != QSettings::NoError) {
+                qWarning() << "GroqSttClient: Failed to save Groq/CustomPrompt:" << settings.status();
+            }
+        }
         emit customPromptChanged();
     }
 }

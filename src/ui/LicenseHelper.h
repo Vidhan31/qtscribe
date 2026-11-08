@@ -2,8 +2,8 @@
 
 #include <QFile>
 #include <QObject>
-#include <QQmlEngine>
 #include <QString>
+#include <QtQmlIntegration/qqmlintegration.h>
 
 class LicenseHelper : public QObject {
     Q_OBJECT

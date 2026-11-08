@@ -307,7 +307,7 @@ jobs:
 
       - name: Run Clang-Tidy on first-party targets
         run: |
-          ninja -C build qtscribe_core keyinjectord qtscribe
+          ninja -C build qtscribe_core keyinjectord qtscribe qtscribed
           ccache --show-stats
 
   sanitizers:

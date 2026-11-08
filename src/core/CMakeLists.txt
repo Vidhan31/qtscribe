@@ -9,8 +9,6 @@ add_library(qtscribe_core STATIC
     AudioFeedbackPlayer.cpp
     AudioRecorder.h
     AudioRecorder.cpp
-    DictationPadModel.h
-    DictationPadModel.cpp
     GlobalShortcutManager.h
     GlobalShortcutManager.cpp
     ApiKeyStore.h
@@ -51,27 +49,16 @@ add_library(qtscribe_core STATIC
     AbstractTextInjector.cpp
     TextInjector.h
     TextInjector.cpp
-    DaemonDiagnosticModel.h
-    DaemonDiagnosticModel.cpp
     CompositeSttEngine.h
     CompositeSttEngine.cpp
     NotificationPresenter.h
     NotificationPresenter.cpp
     DictationCoordinator.h
     DictationCoordinator.cpp
-    TranscriptionModel.h
-    TranscriptionModel.cpp
     DBusService.h
     DBusService.cpp
     LoggingCategories.h
     LoggingCategories.cpp
-    LicenseHelper.h
-    ColorUtils.h
-    ColorUtils.cpp
-    NavigationModel.h
-    NavigationModel.cpp
-    CloudProviderModel.h
-    CloudProviderModel.cpp
     StatusNotifierService.h
     StatusNotifierService.cpp
     LinuxNotificationService.h
@@ -92,11 +79,10 @@ target_link_libraries(qtscribe_core
     PUBLIC
         whisper
         Qt6::Core
-        Qt6::Gui
-        Qt6::Qml
         Qt6::Network
         Qt6::Multimedia
         Qt6::DBus
+        Qt6::QmlIntegration
         Qt6Keychain::Qt6Keychain
     PRIVATE
         qtscribe::compiler_flags
@@ -109,4 +95,12 @@ endif()
 target_compile_definitions(qtscribe_core
     PRIVATE
         QTSCRIBE_VERSION="${PROJECT_VERSION}"
+)
+
+qt_add_resources(qtscribe_core "qtscribe_core_audio_assets"
+    PREFIX "/qt/qml/QtScribe/assets"
+    BASE "${CMAKE_SOURCE_DIR}/assets"
+    FILES
+        ${CMAKE_SOURCE_DIR}/assets/chime_start.wav
+        ${CMAKE_SOURCE_DIR}/assets/chime_stop.wav
 )

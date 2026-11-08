@@ -2,20 +2,35 @@
 
 #include "AbstractTextInjector.h"
 #include "AudioRecorder.h"
+#include "DaemonConnector.h"
 #include "LoggingCategories.h"
 
 #include "AbstractLlmClient.h"
+#include "ApplicationContext.h"
 #include "CompositeSttEngine.h"
 #include "GlobalShortcutManager.h"
+#include "WhisperSttClient.h"
 
+#include <QDateTime>
 #include <QDebug>
-#include <QGuiApplication>
+#include <QDir>
+#include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QLockFile>
 #include <QSettings>
+#include <QStandardPaths>
+#include <QUuid>
 
 using namespace Qt::StringLiterals;
 
 DictationCoordinator::DictationCoordinator(QObject* parent)
     : QObject(parent) {
+    qRegisterMetaType<DictationCoordinator::TranscriptionBackend>();
+    qRegisterMetaType<DictationCoordinator::RecordingMode>();
+    qRegisterMetaType<DictationCoordinator::DictationState>();
+
     QSettings settings;
     const QString modeStr = settings.value(u"Speech/RecordingMode"_s, u"Toggle"_s).toString();
     if (modeStr == u"PushToTalk"_s) {
@@ -24,11 +39,11 @@ DictationCoordinator::DictationCoordinator(QObject* parent)
         m_recordingMode = RecordingMode::Toggle;
     }
 
-    const QString backendStr = settings.value(u"Speech/Backend"_s, u"WhisperCpp"_s).toString();
-    if (backendStr == u"Cloud"_s || backendStr == u"Groq"_s) {
-        m_activeBackend = TranscriptionBackend::Cloud;
-    } else {
+    const QString backendStr = settings.value(u"Speech/Backend"_s, u"Cloud"_s).toString();
+    if (backendStr == u"WhisperCpp"_s) {
         m_activeBackend = TranscriptionBackend::WhisperCpp;
+    } else {
+        m_activeBackend = TranscriptionBackend::Cloud;
     }
 
     m_autoSwitchOffline = settings.value(u"Speech/AutoSwitchOffline"_s, true).toBool();
@@ -112,6 +127,8 @@ void DictationCoordinator::setSttEngine(AbstractSttClient* engine) {
             connect(comp, &CompositeSttEngine::activeBackendChanged, this, &DictationCoordinator::activeBackendChanged);
             connect(comp, &CompositeSttEngine::autoSwitchOfflineChanged, this,
                     &DictationCoordinator::autoSwitchOfflineChanged);
+            connect(comp, &CompositeSttEngine::modelStatusChanged, this, &DictationCoordinator::modelStatusChanged);
+            connect(comp, &CompositeSttEngine::computeDeviceChanged, this, &DictationCoordinator::computeDeviceChanged);
         }
 
         if (m_initialized) {
@@ -161,6 +178,12 @@ void DictationCoordinator::setShortcutManager(GlobalShortcutManager* mgr) {
                    &DictationCoordinator::onShortcutDeactivated);
         disconnect(m_shortcutMgr, &GlobalShortcutManager::supportedChanged, this,
                    &DictationCoordinator::updateCoordinatorHealth);
+        disconnect(m_shortcutMgr, &GlobalShortcutManager::supportedChanged, this,
+                   &DictationCoordinator::shortcutStatusChanged);
+        disconnect(m_shortcutMgr, &GlobalShortcutManager::availableChanged, this,
+                   &DictationCoordinator::shortcutStatusChanged);
+        disconnect(m_shortcutMgr, &GlobalShortcutManager::statusMessageChanged, this,
+                   &DictationCoordinator::shortcutStatusChanged);
     }
 
     m_shortcutMgr = mgr;
@@ -172,8 +195,15 @@ void DictationCoordinator::setShortcutManager(GlobalShortcutManager* mgr) {
                 &DictationCoordinator::onShortcutDeactivated);
         connect(m_shortcutMgr, &GlobalShortcutManager::supportedChanged, this,
                 &DictationCoordinator::updateCoordinatorHealth);
+        connect(m_shortcutMgr, &GlobalShortcutManager::supportedChanged, this,
+                &DictationCoordinator::shortcutStatusChanged);
+        connect(m_shortcutMgr, &GlobalShortcutManager::availableChanged, this,
+                &DictationCoordinator::shortcutStatusChanged);
+        connect(m_shortcutMgr, &GlobalShortcutManager::statusMessageChanged, this,
+                &DictationCoordinator::shortcutStatusChanged);
     }
 
+    emit shortcutStatusChanged();
     updateCoordinatorHealth();
 }
 
@@ -184,6 +214,164 @@ void DictationCoordinator::setTextInjector(AbstractTextInjector* injector) {
 
 AbstractTextInjector* DictationCoordinator::textInjector() const noexcept {
     return m_injector;
+}
+
+void DictationCoordinator::setDaemonConnector(DaemonConnector* connector) {
+    if (m_daemonConnector == connector) {
+        return;
+    }
+
+    if (m_daemonConnector) {
+        disconnect(m_daemonConnector, &DaemonConnector::connectedChanged, this,
+                   &DictationCoordinator::directTypingStatusChanged);
+        disconnect(m_daemonConnector, &DaemonConnector::hasFatalErrorChanged, this,
+                   &DictationCoordinator::directTypingStatusChanged);
+        disconnect(m_daemonConnector, &DaemonConnector::statusMessageChanged, this,
+                   &DictationCoordinator::directTypingStatusChanged);
+    }
+
+    m_daemonConnector = connector;
+
+    if (m_daemonConnector) {
+        connect(m_daemonConnector, &DaemonConnector::connectedChanged, this,
+                &DictationCoordinator::directTypingStatusChanged);
+        connect(m_daemonConnector, &DaemonConnector::hasFatalErrorChanged, this,
+                &DictationCoordinator::directTypingStatusChanged);
+        connect(m_daemonConnector, &DaemonConnector::statusMessageChanged, this,
+                &DictationCoordinator::directTypingStatusChanged);
+    }
+
+    emit directTypingStatusChanged();
+}
+
+DaemonConnector* DictationCoordinator::daemonConnector() const noexcept {
+    return m_daemonConnector;
+}
+
+bool DictationCoordinator::pushToTalkSupported() const noexcept {
+    return m_shortcutMgr && m_shortcutMgr->isSupported();
+}
+
+bool DictationCoordinator::shortcutAvailable() const noexcept {
+    return m_shortcutMgr && m_shortcutMgr->isAvailable();
+}
+
+bool DictationCoordinator::shortcutSupported() const noexcept {
+    return m_shortcutMgr && m_shortcutMgr->isSupported();
+}
+
+QString DictationCoordinator::shortcutStatusMessage() const {
+    return m_shortcutMgr ? m_shortcutMgr->statusMessage() : QString();
+}
+
+bool DictationCoordinator::directTypingConnected() const noexcept {
+    return m_daemonConnector && m_daemonConnector->isConnected();
+}
+
+bool DictationCoordinator::directTypingHasFatalError() const noexcept {
+    return m_daemonConnector && m_daemonConnector->hasFatalError();
+}
+
+QString DictationCoordinator::directTypingFatalErrorMessage() const {
+    return m_daemonConnector ? m_daemonConnector->fatalErrorMessage() : QString();
+}
+
+QString DictationCoordinator::directTypingStatus() const {
+    return m_daemonConnector ? m_daemonConnector->statusMessage() : QString();
+}
+
+void DictationCoordinator::testDirectTyping() {
+    if (m_injector) {
+        m_injector->inject(u"Hello from QtScribe!"_s);
+    }
+}
+
+void DictationCoordinator::restartDirectTyping() {
+    if (m_daemonConnector) {
+        m_daemonConnector->restartService();
+    }
+}
+
+void DictationCoordinator::stopDirectTyping() {
+    if (m_daemonConnector) {
+        m_daemonConnector->stopDaemon();
+    }
+}
+
+WhisperSttClient* DictationCoordinator::whisperClient() const noexcept {
+    if (auto* comp = qobject_cast<CompositeSttEngine*>(m_sttEngine)) {
+        return qobject_cast<WhisperSttClient*>(comp->whisperClient());
+    }
+    return nullptr;
+}
+
+bool DictationCoordinator::isModelLoaded() const {
+    auto* whisper = whisperClient();
+    return whisper ? whisper->isModelLoaded() : false;
+}
+
+bool DictationCoordinator::isModelBusy() const {
+    if (isBusy()) {
+        return true;
+    }
+    auto* whisper = whisperClient();
+    return whisper ? whisper->isBusy() : false;
+}
+
+QString DictationCoordinator::loadedModelPath() const {
+    auto* whisper = whisperClient();
+    return whisper ? whisper->loadedModelPath() : QString();
+}
+
+QString DictationCoordinator::modelPath() const {
+    auto* whisper = whisperClient();
+    return whisper ? whisper->modelPath() : QString();
+}
+
+QString DictationCoordinator::modelFileName() const {
+    auto* whisper = whisperClient();
+    return whisper ? whisper->modelFileName() : QString();
+}
+
+QString DictationCoordinator::computeDevice() const {
+    auto* whisper = whisperClient();
+    return whisper ? whisper->computeDevice() : QString();
+}
+
+bool DictationCoordinator::isVulkanSupported() const {
+    auto* whisper = whisperClient();
+    return whisper ? whisper->isVulkanSupported() : false;
+}
+
+bool DictationCoordinator::isModelInstalled() const {
+    auto* whisper = whisperClient();
+    return whisper ? whisper->isModelInstalled() : false;
+}
+
+void DictationCoordinator::loadModel(const QString& customPath) {
+    if (isBusy()) {
+        qCWarning(lcSpeech) << "DictationCoordinator: Rejecting loadModel while dictation is active";
+        return;
+    }
+    if (auto* whisper = whisperClient()) {
+        whisper->loadModel(customPath);
+    }
+}
+
+void DictationCoordinator::unloadModel() {
+    if (isBusy()) {
+        qCWarning(lcSpeech) << "DictationCoordinator: Rejecting unloadModel while dictation is active";
+        return;
+    }
+    if (auto* whisper = whisperClient()) {
+        whisper->unloadModel();
+    }
+}
+
+void DictationCoordinator::checkModelStatus() {
+    if (auto* whisper = whisperClient()) {
+        whisper->checkModelStatus();
+    }
 }
 
 DictationCoordinator::TranscriptionBackend DictationCoordinator::activeBackend() const {
@@ -215,6 +403,10 @@ void DictationCoordinator::setActiveBackend(TranscriptionBackend backend, bool p
     }
 }
 
+void DictationCoordinator::setActiveBackend(int backend, bool persistSettings) {
+    setActiveBackend(backend == 1 ? TranscriptionBackend::WhisperCpp : TranscriptionBackend::Cloud, persistSettings);
+}
+
 bool DictationCoordinator::autoSwitchOffline() const {
     if (auto* comp = qobject_cast<CompositeSttEngine*>(m_sttEngine)) {
         return comp->autoSwitchOffline();
@@ -241,8 +433,7 @@ DictationCoordinator::RecordingMode DictationCoordinator::recordingMode() const 
 }
 
 void DictationCoordinator::setRecordingMode(RecordingMode mode) {
-    const bool pttSupported = m_shortcutMgr ? m_shortcutMgr->isSupported() : false;
-    if (mode == RecordingMode::PushToTalk && !pttSupported) {
+    if (mode == RecordingMode::PushToTalk && m_shortcutMgr && !m_shortcutMgr->isSupported()) {
         qCDebug(lcSpeech)
             << "Push-to-Talk requested but not supported on current desktop environment; falling back to Toggle";
         mode = RecordingMode::Toggle;
@@ -257,11 +448,72 @@ void DictationCoordinator::setRecordingMode(RecordingMode mode) {
     }
 }
 
+void DictationCoordinator::setRecordingMode(int mode) {
+    setRecordingMode(mode == 1 ? RecordingMode::PushToTalk : RecordingMode::Toggle);
+}
+
+QString DictationCoordinator::historyFilePath() {
+    const QString dirPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    return dirPath + u"/history.json"_s;
+}
+
+void DictationCoordinator::removeHistoryFile() {
+    const QString path = historyFilePath();
+    const QString dirPath = QFileInfo(path).absolutePath();
+    if (QDir(dirPath).exists()) {
+        QLockFile lock(path + u".lock"_s);
+        lock.setStaleLockTime(5000);
+        const bool locked = lock.tryLock(2000);
+        if (QFile::exists(path)) {
+            QFile::remove(path);
+        }
+        if (locked) {
+            lock.unlock();
+        }
+    } else if (QFile::exists(path)) {
+        QFile::remove(path);
+    }
+}
+
+void DictationCoordinator::loadSettings() {
+    QSettings settings;
+    const QString backendStr = settings.value(u"Speech/Backend"_s, u"Cloud"_s).toString();
+    const auto backend =
+        (backendStr == u"WhisperCpp"_s) ? TranscriptionBackend::WhisperCpp : TranscriptionBackend::Cloud;
+
+    auto* comp = qobject_cast<CompositeSttEngine*>(m_sttEngine);
+    const bool isOfflineFallbackActive = comp && comp->isAutoSwitchedToOffline();
+
+    if (!isOfflineFallbackActive || backend == TranscriptionBackend::WhisperCpp) {
+        setActiveBackend(backend, false);
+    }
+    setAutoSwitchOffline(settings.value(u"Speech/AutoSwitchOffline"_s, true).toBool());
+
+    const QString modeStr = settings.value(u"Speech/RecordingMode"_s, u"Toggle"_s).toString();
+    setRecordingMode(modeStr == u"PushToTalk"_s ? RecordingMode::PushToTalk : RecordingMode::Toggle);
+}
+
+void DictationCoordinator::reloadSettings() {
+    loadSettings();
+    if (auto* parentCtx = qobject_cast<ApplicationContext*>(parent())) {
+        parentCtx->reloadSettings();
+    } else if (auto* comp = qobject_cast<CompositeSttEngine*>(m_sttEngine)) {
+        comp->loadSettings();
+    }
+    updateCoordinatorHealth();
+}
+
 void DictationCoordinator::initialize() {
     if (m_initialized) {
         return;
     }
     m_initialized = true;
+
+    const QString filePath = historyFilePath();
+    if (QFile::exists(filePath)) {
+        QFile::setPermissions(filePath, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+    }
+
     if (m_sttEngine) {
         m_sttEngine->activate();
     }
@@ -270,8 +522,7 @@ void DictationCoordinator::initialize() {
 }
 
 void DictationCoordinator::updateCoordinatorHealth() {
-    const bool pttSupported = m_shortcutMgr ? m_shortcutMgr->isSupported() : false;
-    if (m_recordingMode == RecordingMode::PushToTalk && !pttSupported) {
+    if (m_shortcutMgr && m_recordingMode == RecordingMode::PushToTalk && !m_shortcutMgr->isSupported()) {
         qCDebug(lcSpeech) << "Push-to-talk not supported by portal; reverting to Toggle mode";
         m_recordingMode = RecordingMode::Toggle;
         QSettings settings;
@@ -292,8 +543,8 @@ bool DictationCoordinator::isBusy() const {
 
 bool DictationCoordinator::canRecord() const {
     const bool notProcessing = (m_state != DictationState::Transcribing && m_state != DictationState::Enhancing);
-    const bool micReady = m_recorder && m_recorder->hasAudioInputDevice();
-    const bool sttReady = m_sttEngine ? m_sttEngine->isReady() : false;
+    const bool micReady = m_recorder ? m_recorder->hasAudioInputDevice() : true;
+    const bool sttReady = m_sttEngine ? m_sttEngine->isReady() : true;
     return notProcessing && micReady && sttReady;
 }
 
@@ -325,6 +576,17 @@ QString DictationCoordinator::lastTranscription() const {
     return m_lastTranscription;
 }
 
+bool DictationCoordinator::clientWindowFocused() const noexcept {
+    return m_clientWindowFocused;
+}
+
+void DictationCoordinator::setClientWindowFocused(bool focused) {
+    if (m_clientWindowFocused != focused) {
+        m_clientWindowFocused = focused;
+        emit clientWindowFocusedChanged();
+    }
+}
+
 void DictationCoordinator::showWindow() {
     qCDebug(lcSpeech) << "DictationCoordinator: showWindow requested via IPC/D-Bus";
     emit requestShowWindow();
@@ -338,10 +600,13 @@ void DictationCoordinator::navigateToSection(const QString& section) {
 
 void DictationCoordinator::quitApp() {
     qCDebug(lcSpeech) << "DictationCoordinator: quitApp requested via IPC/D-Bus";
+    removeHistoryFile();
     emit requestQuitApp();
 }
 
 void DictationCoordinator::startRecording() {
+    loadSettings();
+
     if (isBusy()) {
         qCDebug(lcSpeech) << "DictationCoordinator: startRecording ignored — already busy";
         return;
@@ -442,6 +707,13 @@ void DictationCoordinator::clearLastTranscription() {
     }
 }
 
+void DictationCoordinator::clearHistory() {
+    removeHistoryFile();
+    m_lastTranscription.clear();
+    emit lastTranscriptionChanged();
+    emit historyCleared();
+}
+
 void DictationCoordinator::clearError() {
     setLastError({});
     if (m_state == DictationState::Error) {
@@ -465,37 +737,31 @@ void DictationCoordinator::onRecordingFinished(const QByteArray& wavData) {
 
     m_lastWavData = wavData;
     setState(DictationState::Transcribing);
-    setStatusMessage(tr("Transcribing audio…"));
+    setStatusMessage(tr("Transcribing…"));
 
     if (m_sttEngine) {
-        m_sttEngine->transcribe(wavData);
+        m_sttEngine->transcribe(m_lastWavData);
     } else {
+        qWarning() << "DictationCoordinator: No active STT engine to transcribe audio";
         setLastError(tr("Speech-to-text service is unavailable"));
         setState(DictationState::Error);
     }
 }
 
 void DictationCoordinator::onMaxDurationReached() {
-    qWarning() << "DictationCoordinator: Maximum recording duration safety limit reached";
+    qCDebug(lcSpeech) << "DictationCoordinator: Max recording duration reached";
     emit maxDurationWarningTriggered();
     stopRecording();
 }
 
 void DictationCoordinator::onSttTranscriptionReady(const QString& text) {
     if (m_state != DictationState::Transcribing || (sender() && sender() != m_sttEngine)) {
-        qCDebug(lcSpeech) << "DictationCoordinator: Ignoring transcriptionReady: not in Transcribing state or sender "
-                             "is not active STT engine";
+        qCDebug(lcSpeech) << "DictationCoordinator: Ignoring STT response: not in Transcribing state or sender is not "
+                             "active STT engine";
         return;
     }
 
-    qCDebug(lcSpeech) << "DictationCoordinator: STT transcription received (" << text.size() << "chars)";
-
-    if (text.trimmed().isEmpty()) {
-        setState(DictationState::Idle);
-        setStatusMessage(tr("Ready"));
-        updateCoordinatorHealth();
-        return;
-    }
+    qCDebug(lcSpeech) << "DictationCoordinator: Raw STT transcription received (" << text.size() << "chars)";
 
     const bool isCloud = (activeBackend() == TranscriptionBackend::Cloud);
     if (isCloud && m_llmClient && m_llmClient->enabled()) {
@@ -543,6 +809,45 @@ void DictationCoordinator::completeTranscription(const QString& text) {
     setStatusMessage(tr("Ready"));
     updateCoordinatorHealth();
     finishTranscriptionAndInject(text);
+
+    if (!text.trimmed().isEmpty()) {
+        const QString dirPath = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+        QDir().mkpath(dirPath);
+        QFile::setPermissions(dirPath, QFileDevice::ReadOwner | QFileDevice::WriteOwner | QFileDevice::ExeOwner);
+        const QString filePath = historyFilePath();
+        QLockFile lock(filePath + u".lock"_s);
+        lock.setStaleLockTime(5000);
+        const bool locked = lock.tryLock(2000);
+        QFile file(filePath);
+        if (file.exists()) {
+            file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+        }
+        QJsonArray records;
+        if (file.open(QIODevice::ReadOnly)) {
+            const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
+            if (doc.isArray()) {
+                records = doc.array();
+            }
+            file.close();
+        }
+        QJsonObject rec;
+        rec[u"id"_s] = QUuid::createUuid().toString(QUuid::WithoutBraces);
+        rec[u"timestamp"_s] = QDateTime::currentDateTimeUtc().toString(Qt::ISODate);
+        rec[u"text"_s] = text;
+        records.prepend(rec);
+        while (records.size() > 200) {
+            records.removeLast();
+        }
+        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+            file.write(QJsonDocument(records).toJson(QJsonDocument::Compact));
+            file.close();
+        }
+        if (locked) {
+            lock.unlock();
+        }
+    }
+
     emit transcriptionFinished(text);
 }
 
@@ -551,8 +856,7 @@ void DictationCoordinator::finishTranscriptionAndInject(const QString& text) {
         return;
     }
 
-    const bool isAppActive = (QGuiApplication::focusWindow() != nullptr);
-    if (m_injector && !isAppActive) {
+    if (m_injector && !m_clientWindowFocused) {
         m_injector->inject(text);
     }
 }
@@ -606,6 +910,7 @@ void DictationCoordinator::setState(DictationState state) {
         emit transcribingChanged();
         emit enhancingChanged();
         emit canRecordChanged();
+        emit modelStatusChanged();
     }
 }
 
