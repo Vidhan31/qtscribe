@@ -11,6 +11,7 @@ on:
       - 'CMakeLists.txt'
       - 'CMakePresets.json'
       - '.github/workflows/codeql.yml'
+      - '.github/codeql/**'
       - '.github/actions/setup-build-deps/**'
   pull_request:
     branches:
@@ -22,9 +23,11 @@ on:
       - 'CMakeLists.txt'
       - 'CMakePresets.json'
       - '.github/workflows/codeql.yml'
+      - '.github/codeql/**'
       - '.github/actions/setup-build-deps/**'
   schedule:
     - cron: '0 6 * * 1'
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -68,7 +71,7 @@ jobs:
 
       - name: Configure CMake
         run: |
-          cmake -B build -S . -GNinja \
+          cmake -B ../build -S . -GNinja \
             -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_PREFIX_PATH="${QT_ROOT_DIR};/usr/lib/x86_64-linux-gnu" \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
@@ -77,7 +80,7 @@ jobs:
 
       - name: Pre-build third-party dependencies (excluded from CodeQL tracing)
         run: |
-          ninja -C build whisper
+          ninja -C ../build whisper
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
@@ -88,7 +91,7 @@ jobs:
 
       - name: Build C++ targets for CodeQL
         run: |
-          ninja -C build qtscribe_core keyinjectord qtscribe
+          ninja -C ../build qtscribe_core keyinjectord qtscribe
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
