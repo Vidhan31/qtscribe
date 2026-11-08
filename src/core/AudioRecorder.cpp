@@ -144,7 +144,8 @@ void AudioRecorder::startRecording() {
                      << "Channels:" << m_format.channelCount() << "SampleFormat:" << m_format.sampleFormat();
 
     m_pcmData.clear();
-    m_pcmData.reserve(m_format.sampleRate() * m_format.channelCount() * m_format.bytesPerSample() * 30);
+    m_pcmData.reserve(static_cast<qsizetype>(m_format.sampleRate()) * m_format.channelCount() *
+                      m_format.bytesPerSample() * 30);
 
     delete m_source;
     m_source = new QAudioSource(inputDevice, m_format, this);

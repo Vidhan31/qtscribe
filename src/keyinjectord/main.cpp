@@ -56,15 +56,20 @@ int main(int argc, char* argv[]) {
     int socketFd = -1;
     [[maybe_unused]] bool verbose = false;
 
-    for (int i = 1; i < argc; ++i) {
+    int i = 1;
+    while (i < argc) {
         if (std::strcmp(argv[i], "--socket-fd") == 0 && i + 1 < argc) {
-            socketFd = std::atoi(argv[++i]);
+            socketFd = std::atoi(argv[i + 1]);
+            i += 2;
         } else if (std::strcmp(argv[i], "--delay-ms") == 0 && i + 1 < argc) {
-            delayMs = std::atoi(argv[++i]);
-            if (delayMs < 1)
+            delayMs = std::atoi(argv[i + 1]);
+            if (delayMs < 1) {
                 delayMs = 1;
+            }
+            i += 2;
         } else if (std::strcmp(argv[i], "--verbose") == 0 || std::strcmp(argv[i], "-v") == 0) {
             verbose = true;
+            ++i;
         } else if (std::strcmp(argv[i], "--help") == 0) {
             printUsage(argv[0]);
             return 0;

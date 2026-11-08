@@ -50,6 +50,15 @@ QString DaemonConnector::statusMessage() const {
     return m_statusMessage;
 }
 
+/**
+ * @brief Ensures the helper injector daemon is running and an authenticated connection is open.
+ *
+ * Checks current connection and process states, launches the daemon executable
+ * socket pair if inactive, executes bidirectional capability authorization, and
+ * waits for the UNIX domain socket handshake to establish communication.
+ *
+ * @return true if the daemon is successfully running and connected; false on error.
+ */
 bool DaemonConnector::ensureDaemonRunning() {
     if (isConnected()) {
         return true;

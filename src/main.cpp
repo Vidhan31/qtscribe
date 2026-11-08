@@ -60,6 +60,13 @@ public slots:
     }
 };
 
+/**
+ * @brief Application entry point for the QtScribe GUI client.
+ *
+ * Configures the Wayland platform environment, single-instance D-Bus registration,
+ * registers QML types, initializes the settings and daemon client backends, and
+ * launches the main QML application engine.
+ */
 int main(int argc, char* argv[]) {
     if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM")) {
         qputenv("QT_QPA_PLATFORM", "wayland");

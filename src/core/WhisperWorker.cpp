@@ -37,6 +37,17 @@ WhisperWorker::~WhisperWorker() {
     }
 }
 
+/**
+ * @brief Loads a Whisper model from disk into the worker context.
+ *
+ * Releases any previously active model context, verifies model existence,
+ * checks cancellation requests, and initializes the whisper.cpp context
+ * with optional GPU acceleration. Emits modelLoaded upon completion.
+ *
+ * @param loadRequestId Unique identifier for tracking this load operation.
+ * @param modelPath Filesystem path to the ggml Whisper model file.
+ * @param useGpu Whether to enable GPU acceleration if supported.
+ */
 void WhisperWorker::loadModel(uint64_t loadRequestId, const QString& modelPath, bool useGpu) {
     if (loadRequestId > m_cancelledLoadRequestId.load(std::memory_order_relaxed)) {
         resetAbort();
@@ -251,6 +262,18 @@ bool WhisperWorker::isLoadAborted(uint64_t loadRequestId) const {
     return false;
 }
 
+/**
+ * @brief Transcribes an input WAV audio payload using the loaded Whisper model.
+ *
+ * Verifies cancellation and model readiness, decodes the raw WAV payload
+ * into 16 kHz float PCM samples, configures inference parameters (language,
+ * prompt, threading), runs whisper inference, and emits transcriptionReady.
+ *
+ * @param requestId Unique identifier for the transcription request.
+ * @param wavData Raw WAV audio data to be decoded and transcribed.
+ * @param language Target language code, or empty for automatic detection.
+ * @param prompt Optional initial prompt or vocabulary guidance.
+ */
 void WhisperWorker::transcribe(uint64_t requestId, const QByteArray& wavData, const QString& language,
                                const QString& prompt) {
     if (requestId > 0 && requestId <= m_cancelledRequestId.load(std::memory_order_acquire)) {

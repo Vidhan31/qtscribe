@@ -40,6 +40,20 @@ bool FsSecurityChecker::isUntrustedPath(const std::filesystem::path& path) {
     });
 }
 
+/**
+ * @brief Validates the filesystem ownership and permissions of a binary and all its parent directories.
+ *
+ * Traverses from root to the target leaf using O_PATH file descriptors to protect
+ * against TOCTOU symlink races. Verifies that every ancestor directory is owned by
+ * root (or the allowed developer UID in dev mode) and not writable by untrusted users.
+ *
+ * @param rawPath The target executable path to validate.
+ * @param outResult Detailed authorization failure result code.
+ * @param allowDevMode Whether to permit dev-mode non-root ownership checks.
+ * @param outLeafStat Optional buffer to receive final leaf stat metadata.
+ * @param rejectGroupWritable Whether to enforce strict denial of group-writable directories.
+ * @return true if the full path ancestry meets security constraints; false otherwise.
+ */
 bool FsSecurityChecker::validateDirectoryAncestry(const std::filesystem::path& rawPath, AuthResult* outResult,
                                                   bool allowDevMode, struct stat* outLeafStat,
                                                   bool rejectGroupWritable) {

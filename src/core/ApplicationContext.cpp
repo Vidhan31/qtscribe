@@ -120,6 +120,13 @@ void ApplicationContext::reloadSettings() {
     }
 }
 
+/**
+ * @brief Interconnects signals, slots, and dependencies between all core subsystems.
+ *
+ * Configures communication channels between audio recording, speech-to-text clients,
+ * model managers, LLM enhancers, text injectors, audio feedback, and the main
+ * dictation coordinator.
+ */
 void ApplicationContext::wireSubsystems() {
     if (m_whisperSttClient && m_whisperModelManager) {
         m_whisperSttClient->setModelManager(m_whisperModelManager);

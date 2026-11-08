@@ -23,6 +23,13 @@ using namespace std::chrono_literals;
 #define QTSCRIBE_VERSION "0.0.0-dev"
 #endif
 
+/**
+ * @brief Application entry point for the headless QtScribe background daemon.
+ *
+ * Configures core application metadata, parses command line options, initializes
+ * the application context (speech pipeline, models, audio, and shortcuts), and
+ * exports the D-Bus interface for client communication.
+ */
 int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
     app.setApplicationName(u"QtScribe"_s);

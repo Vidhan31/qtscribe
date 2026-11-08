@@ -14,6 +14,18 @@
 #define MINIAUDIO_IMPLEMENTATION
 #include "miniaudio.h"
 
+/**
+ * @brief Decodes a WAV audio payload into 32-bit floating-point mono PCM samples.
+ *
+ * Utilizes miniaudio for primary decoding and sample-rate conversion to the target
+ * rate (default 16 kHz). Falls back to a manual RIFF parser for 16-bit PCM if
+ * miniaudio cannot initialize the memory stream.
+ *
+ * @param wavData Input byte array containing RIFF/WAVE header and sample payload.
+ * @param outPcmf32 Output vector receiving normalized [-1.0f, 1.0f] PCM samples.
+ * @param targetSampleRate Target sampling rate in Hz (typically 16000 for Whisper).
+ * @return true if decoding succeeded and produced valid PCM frames; false otherwise.
+ */
 bool WavDecoder::decode(const QByteArray& wavData, std::vector<float>& outPcmf32, uint32_t targetSampleRate) {
     if (wavData.size() < 12 || targetSampleRate == 0) {
         return false;

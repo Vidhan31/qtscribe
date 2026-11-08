@@ -428,6 +428,13 @@ void DaemonClient::onTranscriptionFinished(const QString& text) {
     emit transcriptionFinished(text);
 }
 
+/**
+ * @brief Synchronizes all local client properties with the daemon's current D-Bus state.
+ *
+ * Queries all exported properties (dictation state, audio levels, active backend,
+ * model statuses, and configuration parameters) and emits corresponding Qt Quick
+ * change notifications when differences are detected.
+ */
 void DaemonClient::syncFromDaemon() {
     if (!m_interface || !m_interface->isValid()) {
         return;
