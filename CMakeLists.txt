@@ -250,7 +250,7 @@ if(ENABLE_CPACK_DEB)
     set(XDG_AUTOSTART_PREFIX "/etc/xdg/autostart")
 else()
     set(DESKTOP_AND_ICON_PREFIX "${CMAKE_INSTALL_DATADIR}")
-    set(XDG_AUTOSTART_PREFIX "${CMAKE_INSTALL_SYSCONFDIR}/xdg/autostart")
+    set(XDG_AUTOSTART_PREFIX "${CMAKE_INSTALL_FULL_SYSCONFDIR}/xdg/autostart")
 endif()
 
 install(
