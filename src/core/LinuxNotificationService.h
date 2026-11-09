@@ -5,14 +5,13 @@
 #include <QSet>
 #include <QString>
 #include <QStringList>
-#include <QtQmlIntegration/qqmlintegration.h>
 
 #include <cstdint>
 
+class SettingsManager;
+
 class LinuxNotificationService : public QObject {
     Q_OBJECT
-    QML_ELEMENT
-    QML_SINGLETON
 
     Q_PROPERTY(bool enabled READ isEnabled WRITE setEnabled NOTIFY enabledChanged FINAL)
 
@@ -26,6 +25,9 @@ public:
 
     bool isEnabled() const;
     void setEnabled(bool enable);
+
+    void setSettingsManager(SettingsManager* settings);
+    [[nodiscard]] SettingsManager* settingsManager() const noexcept;
 
     void loadSettings();
 
@@ -55,6 +57,7 @@ protected:
     QSet<uint> m_activeNotificationIds;
 
 private:
+    SettingsManager* m_settingsManager = nullptr;
     bool m_enabled = true;
     QHash<QString, uint> m_categoryIds;
 };

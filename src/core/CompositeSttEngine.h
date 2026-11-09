@@ -8,9 +8,11 @@
 #include <QString>
 
 class AudioRecorder;
-class WhisperSttClient;
+class AbstractCloudSttClient;
+class AbstractOfflineSttClient;
 class WhisperModelManager;
 class SystemHealthMonitor;
+class SettingsManager;
 
 class CompositeSttEngine : public AbstractSttClient {
     Q_OBJECT
@@ -27,11 +29,14 @@ public:
     explicit CompositeSttEngine(QObject* parent = nullptr);
     ~CompositeSttEngine() override = default;
 
-    void setCloudClient(AbstractSttClient* client);
-    [[nodiscard]] AbstractSttClient* cloudClient() const noexcept;
+    void setCloudClient(AbstractCloudSttClient* client);
+    [[nodiscard]] AbstractCloudSttClient* cloudClient() const noexcept;
 
-    void setWhisperClient(AbstractSttClient* client);
-    [[nodiscard]] AbstractSttClient* whisperClient() const noexcept;
+    void setWhisperClient(AbstractOfflineSttClient* client);
+    [[nodiscard]] AbstractOfflineSttClient* whisperClient() const noexcept;
+
+    void setOfflineClient(AbstractOfflineSttClient* client) { setWhisperClient(client); }
+    [[nodiscard]] AbstractOfflineSttClient* offlineClient() const noexcept { return whisperClient(); }
 
     void setModelManager(WhisperModelManager* manager);
     [[nodiscard]] WhisperModelManager* modelManager() const noexcept;
@@ -41,6 +46,9 @@ public:
 
     void setAudioRecorder(AudioRecorder* recorder);
     [[nodiscard]] AudioRecorder* audioRecorder() const noexcept;
+
+    void setSettingsManager(SettingsManager* settings);
+    [[nodiscard]] SettingsManager* settingsManager() const noexcept;
 
     [[nodiscard]] TranscriptionBackend activeBackend() const;
     void setActiveBackend(TranscriptionBackend backend, bool persistSettings = true);
@@ -68,13 +76,6 @@ public:
     void activate() override;
     void deactivate() override;
 
-    [[nodiscard]] bool isApiKeySet() const override;
-    [[nodiscard]] bool isApiKeyInvalid() const override;
-    [[nodiscard]] bool isRateLimited() const override;
-    [[nodiscard]] int retrySecondsRemaining() const override;
-    [[nodiscard]] ErrorCategory errorCategory() const override;
-
-public slots:
     void onNetworkOnlineChanged(bool online);
     void checkPendingOfflineOrOnlineSwitch();
 
@@ -82,6 +83,7 @@ signals:
     void activeBackendChanged();
     void autoSwitchOfflineChanged();
     void autoSwitchedToOfflineChanged();
+    void cloudClientChanged(AbstractCloudSttClient* client);
 
     void failoverTriggered();
     void onlineRestored();
@@ -91,22 +93,22 @@ signals:
     void modelStatusChanged();
     void computeDeviceChanged();
 
-private slots:
+private:
     void onActiveClientTranscriptionReady(const QString& text);
     void onActiveClientError(const QString& error);
     void onWhisperModelLoadFailed(const QString& modelPath, const QString& error);
 
-private:
     void applyOfflineSwitch();
     void restoreOnlineBackend();
     [[nodiscard]] bool isOfflineModelAvailable() const;
     void setLastError(const QString& error);
 
-    QPointer<AbstractSttClient> m_cloudClient;
-    QPointer<AbstractSttClient> m_whisperClient;
+    QPointer<AbstractCloudSttClient> m_cloudClient;
+    QPointer<AbstractOfflineSttClient> m_whisperClient;
     QPointer<WhisperModelManager> m_modelManager;
     QPointer<SystemHealthMonitor> m_healthMonitor;
     QPointer<AudioRecorder> m_recorder;
+    SettingsManager* m_settingsManager = nullptr;
 
     TranscriptionBackend m_activeBackend = TranscriptionBackend::WhisperCpp;
     bool m_autoSwitchOffline = true;

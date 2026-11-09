@@ -57,27 +57,26 @@ Item {
                         spacing: Theme.spacingSm
 
                         StyledText {
-                            text: WhisperModelManager.isSelectedModelInstalled ? WhisperModelManager.selectedModelName :
-                                                                                 qsTr("None Selected")
+                            text: ModelCatalog.isSelectedModelInstalled ? ModelCatalog.selectedModelName : qsTr(
+                                                                              "None Selected")
                             variant: "body"
                             customWeight: Font.DemiBold
                         }
 
                         StyledText {
-                            text: "(" + WhisperSttClient.modelFileName + ")"
+                            text: "(" + DaemonClient.modelFileName + ")"
                             variant: "caption"
                             colorRole: "secondary"
-                            visible: WhisperModelManager.isSelectedModelInstalled
+                            visible: ModelCatalog.isSelectedModelInstalled
                         }
                     }
 
                     StyledText {
                         text: {
-                            if (WhisperSttClient.isModelLoaded && WhisperSttClient.loadedModelPath
-                                === WhisperSttClient.modelPath) {
+                            if (DaemonClient.isModelLoaded && DaemonClient.loadedModelPath === DaemonClient.modelPath) {
                                 return qsTr("Loaded into memory and ready for dictation");
                             }
-                            if (WhisperModelManager.isSelectedModelInstalled) {
+                            if (ModelCatalog.isSelectedModelInstalled) {
                                 return qsTr("Installed on disk (click Load to activate in memory)");
                             }
                             return qsTr("No active model installed. Download a model below to begin.");
@@ -89,27 +88,25 @@ Item {
 
                 StateBadge {
                     text: {
-                        if (WhisperSttClient.isModelLoaded && WhisperSttClient.loadedModelPath
-                            === WhisperSttClient.modelPath) {
+                        if (DaemonClient.isModelLoaded && DaemonClient.loadedModelPath === DaemonClient.modelPath) {
                             return qsTr("Ready");
                         }
-                        if (WhisperModelManager.isSelectedModelInstalled) {
+                        if (ModelCatalog.isSelectedModelInstalled) {
                             return qsTr("Installed");
                         }
                         return qsTr("No Model");
                     }
                     statusType: {
-                        if (WhisperSttClient.isModelLoaded && WhisperSttClient.loadedModelPath
-                            === WhisperSttClient.modelPath) {
+                        if (DaemonClient.isModelLoaded && DaemonClient.loadedModelPath === DaemonClient.modelPath) {
                             return "success";
                         }
-                        if (WhisperModelManager.isSelectedModelInstalled) {
+                        if (ModelCatalog.isSelectedModelInstalled) {
                             return "neutral";
                         }
                         return "neutral";
                     }
-                    showDot: WhisperModelManager.isSelectedModelInstalled
-                    pulsing: WhisperSttClient.busy
+                    showDot: ModelCatalog.isSelectedModelInstalled
+                    pulsing: DaemonClient.isModelBusy
                 }
             }
 
@@ -120,14 +117,15 @@ Item {
                 spacing: Theme.spacingSm
 
                 StyledButton {
-                    text: (WhisperSttClient.isModelLoaded && WhisperSttClient.loadedModelPath
-                           === WhisperSttClient.modelPath) ? qsTr("Reload Model") : qsTr("Load Model")
+                    text: (DaemonClient.isModelLoaded && DaemonClient.loadedModelPath === DaemonClient.modelPath) ? qsTr(
+                                                                                                                        "Reload Model") :
+                                                                                                                    qsTr("Load Model")
                     size: "small"
-                    variant: (WhisperSttClient.isModelLoaded && WhisperSttClient.loadedModelPath
-                              === WhisperSttClient.modelPath) ? "secondary" : "primary"
-                    enabled: WhisperModelManager.isSelectedModelInstalled && !WhisperSttClient.busy
+                    variant: (DaemonClient.isModelLoaded && DaemonClient.loadedModelPath === DaemonClient.modelPath)
+                             ? "secondary" : "primary"
+                    enabled: ModelCatalog.isSelectedModelInstalled && !DaemonClient.isModelBusy && !DaemonClient.isBusy
                     onClicked: {
-                        WhisperSttClient.loadModel();
+                        DaemonClient.loadModel();
                     }
                 }
 
@@ -135,10 +133,10 @@ Item {
                     text: qsTr("Unload Model")
                     size: "small"
                     variant: "secondary"
-                    visible: WhisperSttClient.isModelLoaded
-                    enabled: !WhisperSttClient.busy
+                    visible: DaemonClient.isModelLoaded
+                    enabled: !DaemonClient.isModelBusy && !DaemonClient.isBusy
                     onClicked: {
-                        WhisperSttClient.unloadModel();
+                        DaemonClient.unloadModel();
                     }
                 }
 
@@ -147,8 +145,8 @@ Item {
                     size: "small"
                     variant: "flat"
                     onClicked: {
-                        WhisperModelManager.refreshModelList();
-                        WhisperSttClient.checkModelStatus();
+                        ModelCatalog.refreshModelList();
+                        DaemonClient.checkModelStatus();
                     }
                 }
 
@@ -192,7 +190,7 @@ Item {
                     }
 
                     StyledText {
-                        text: WhisperModelManager.modelsDirectory
+                        text: ModelCatalog.modelsDirectory
                         variant: "caption"
                         colorRole: "secondary"
                         elide: Text.ElideMiddle
@@ -206,7 +204,7 @@ Item {
                     }
 
                     StyledText {
-                        text: qsTr("Free: %1").arg(WhisperModelManager.availableDiskSpaceFormatted)
+                        text: qsTr("Free: %1").arg(ModelCatalog.availableDiskSpaceFormatted)
                         variant: "caption"
                         customWeight: Font.Medium
                         colorRole: "secondary"
@@ -217,7 +215,7 @@ Item {
                         size: "small"
                         variant: "ghost"
                         onClicked: {
-                            Qt.openUrlExternally("file://" + WhisperModelManager.modelsDirectory);
+                            Qt.openUrlExternally("file://" + ModelCatalog.modelsDirectory);
                         }
                     }
 
@@ -227,7 +225,7 @@ Item {
                         size: "small"
                         variant: "flat"
                         onClicked: {
-                            WhisperModelManager.refreshModelList();
+                            ModelCatalog.refreshModelList();
                         }
                     }
                 }
@@ -240,7 +238,7 @@ Item {
                 color: Theme.statusDangerBg
                 border.color: Theme.statusDangerBorder
                 border.width: 1
-                visible: WhisperModelManager.lastError.length > 0
+                visible: ModelCatalog.lastError.length > 0
 
                 RowLayout {
                     id: errorLayout
@@ -251,7 +249,7 @@ Item {
                     spacing: Theme.spacingSm
 
                     StyledText {
-                        text: WhisperModelManager.lastError
+                        text: ModelCatalog.lastError
                         variant: "caption"
                         customColor: Theme.colorDanger
                         wrapMode: Text.WordWrap
@@ -263,7 +261,7 @@ Item {
                         size: "small"
                         variant: "flat"
                         onClicked: {
-                            WhisperModelManager.checkDiskSpace();
+                            ModelCatalog.checkDiskSpace();
                         }
                     }
                 }
@@ -276,7 +274,7 @@ Item {
                 spacing: Theme.spacingSm
 
                 Repeater {
-                    model: WhisperModelManager
+                    model: ModelCatalog
 
                     delegate: Rectangle {
                         id: modelRow
@@ -415,7 +413,7 @@ Item {
                                         variant: "danger"
                                         visible: modelRow.isDownloading
                                         onClicked: {
-                                            WhisperModelManager.cancelDownload(modelRow.modelId);
+                                            ModelCatalog.cancelDownload(modelRow.modelId);
                                         }
                                     }
 
@@ -424,9 +422,9 @@ Item {
                                         size: "small"
                                         variant: "primary"
                                         visible: !modelRow.isInstalled && !modelRow.isDownloading
-                                        enabled: !WhisperModelManager.isDownloadingAny
+                                        enabled: !ModelCatalog.isDownloadingAny
                                         onClicked: {
-                                            WhisperModelManager.startDownload(modelRow.modelId);
+                                            ModelCatalog.startDownload(modelRow.modelId);
                                         }
                                     }
 
@@ -435,8 +433,9 @@ Item {
                                         size: "small"
                                         variant: "secondary"
                                         visible: modelRow.isInstalled && !modelRow.isSelected && !modelRow.isDownloading
+                                        enabled: !DaemonClient.isModelBusy && !DaemonClient.isBusy
                                         onClicked: {
-                                            WhisperModelManager.setSelectedModelId(modelRow.modelId);
+                                            ModelCatalog.setSelectedModelId(modelRow.modelId);
                                         }
                                     }
 
@@ -445,8 +444,9 @@ Item {
                                         size: "small"
                                         variant: "ghost"
                                         visible: modelRow.canDelete && !modelRow.isDownloading
+                                        enabled: !DaemonClient.isModelBusy && !DaemonClient.isBusy
                                         onClicked: {
-                                            WhisperModelManager.deleteModel(modelRow.modelId);
+                                            ModelCatalog.deleteModel(modelRow.modelId);
                                         }
                                     }
                                 }
@@ -472,8 +472,8 @@ Item {
                                     }
 
                                     StyledText {
-                                        text: WhisperModelManager.downloadBytesFormatted + (
-                                                  modelRow.speedFormatted.length > 0 ? " (" + modelRow.speedFormatted
+                                        text: ModelCatalog.downloadBytesFormatted + (modelRow.speedFormatted.length > 0
+                                                                                     ? " (" + modelRow.speedFormatted
                                                                                        + ")" : "")
                                         variant: "caption"
                                         colorRole: "secondary"
@@ -531,17 +531,16 @@ Item {
                     }
 
                     StyledText {
-                        text: WhisperSttClient.isVulkanSupported ? qsTr(
-                                                                       "Vulkan GPU acceleration is enabled in this build") :
-                                                                   qsTr("Running via optimized CPU SIMD intrinsics (AVX2/AVX)")
+                        text: DaemonClient.isVulkanSupported ? qsTr("Vulkan GPU acceleration is enabled in this build") :
+                                                               qsTr("Running via optimized CPU SIMD intrinsics (AVX2/AVX)")
                         variant: "caption"
                         colorRole: "secondary"
                     }
                 }
 
                 StateBadge {
-                    text: WhisperSttClient.computeDevice
-                    statusType: WhisperSttClient.isVulkanSupported ? "accent" : "neutral"
+                    text: DaemonClient.computeDevice
+                    statusType: DaemonClient.isVulkanSupported ? "accent" : "neutral"
                 }
             }
         }

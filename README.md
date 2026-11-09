@@ -33,7 +33,7 @@ Offline transcription runs locally on your device, keeping your audio private. Y
 
 ## Features
 
-- **Direct typing.** Types words straight into the focused input field of any app or browser without touching your clipboard.
+- **Text injection.** Injects transcribed text into the focused input field of any application using a background helper daemon, automatically restoring your clipboard.
 - **Push-to-talk and toggle.** Hold a key to record and release to transcribe, or use toggle shortcuts.
 - **Private and offline.** Runs speech models directly on your device. Audio never leaves your computer.
 - **Hardware acceleration.** Runs local models on Vulkan-capable GPUs with automatic CPU fallback.

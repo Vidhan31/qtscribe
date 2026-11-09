@@ -26,13 +26,13 @@ public:
     static int calculateWordCount(const QString& text);
     Q_INVOKABLE static void copyTextToClipboard(const QString& text);
 
+signals:
+    void textChanged();
+
 public slots:
     void append(const QString& text);
     void clear();
     void copyToClipboard();
-
-signals:
-    void textChanged();
 
 private:
     QString m_text;

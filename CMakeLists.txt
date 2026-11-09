@@ -142,20 +142,13 @@ target_compile_definitions(qtscribe
 target_include_directories(qtscribe
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
-        ${CMAKE_CURRENT_SOURCE_DIR}/src/core
 )
 
 target_link_libraries(qtscribe
     PRIVATE
-        qtscribe_core
         qtscribe_ui
         qtscribe_uiplugin
         qtscribe::compiler_flags
-)
-
-target_link_options(qtscribe
-    PRIVATE
-        "-Wl,--allow-multiple-definition"
 )
 
 

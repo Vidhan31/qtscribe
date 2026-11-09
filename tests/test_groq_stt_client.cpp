@@ -1,6 +1,8 @@
-#include "ApiKeyStore.h"
 #include "GroqSttClient.h"
-#include "PresetProvider.h"
+#include "AbstractCloudSttClient.h"
+
+#include "common/PresetProvider.h"
+#include "ApiKeyStore.h"
 #include "mock_network_access_manager.h"
 
 #include <QCoreApplication>
@@ -91,7 +93,7 @@ private slots:
         client.setKeyStore(store);
 
         QSignalSpy spyKeyChanged(&client, &GroqSttClient::apiKeyChanged);
-        QSignalSpy spyKeySetChanged(&client, &AbstractSttClient::apiKeySetChanged);
+        QSignalSpy spyKeySetChanged(&client, &AbstractCloudSttClient::apiKeySetChanged);
 
         client.setApiKey(u"  gsk_new_active_key_12345  "_s);
 
@@ -177,7 +179,7 @@ private slots:
 
         QCOMPARE(errorSpy.count(), 1);
         QCOMPARE(errorSpy.first().at(0).toString(), u"Groq API key is not set"_s);
-        QCOMPARE(client.errorCategory(), AbstractSttClient::ErrorCategory::InvalidApiKey);
+        QCOMPARE(client.errorCategory(), AbstractCloudSttClient::ErrorCategory::InvalidApiKey);
         QVERIFY(!client.isApiKeySet());
         QVERIFY(!client.isReady());
     }
@@ -217,7 +219,7 @@ private slots:
 
         QTRY_VERIFY(client.isRateLimited());
         QCOMPARE(client.retrySecondsRemaining(), 10);
-        QCOMPARE(client.errorCategory(), AbstractSttClient::ErrorCategory::RateLimited);
+        QCOMPARE(client.errorCategory(), AbstractCloudSttClient::ErrorCategory::RateLimited);
         QVERIFY(errorSpy.count() >= 1);
     }
 
@@ -235,7 +237,7 @@ private slots:
         client.transcribe(QByteArray("RIFFfakeWavData"));
 
         QTRY_VERIFY(client.isApiKeyInvalid());
-        QCOMPARE(client.errorCategory(), AbstractSttClient::ErrorCategory::InvalidApiKey);
+        QCOMPARE(client.errorCategory(), AbstractCloudSttClient::ErrorCategory::InvalidApiKey);
         QCOMPARE(errorSpy.count(), 1);
     }
 

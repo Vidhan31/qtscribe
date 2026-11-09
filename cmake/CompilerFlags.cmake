@@ -20,11 +20,13 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang
         $<$<COMPILE_LANGUAGE:CXX>:-Woverloaded-virtual>
         -Wformat=2
         $<$<CONFIG:Release>:-O3>
-        $<$<CONFIG:Release>:-ffunction-sections>
-        $<$<CONFIG:Release>:-fdata-sections>
-        $<$<CONFIG:Release>:-fno-semantic-interposition>
-        $<$<CONFIG:Release>:-U_FORTIFY_SOURCE>
-        $<$<CONFIG:Release>:-D_FORTIFY_SOURCE=3>
+        $<$<CONFIG:RelWithDebInfo>:-O2>
+        $<$<CONFIG:RelWithDebInfo>:-g>
+        $<$<CONFIG:Release,RelWithDebInfo>:-ffunction-sections>
+        $<$<CONFIG:Release,RelWithDebInfo>:-fdata-sections>
+        $<$<CONFIG:Release,RelWithDebInfo>:-fno-semantic-interposition>
+        $<$<CONFIG:Release,RelWithDebInfo>:-U_FORTIFY_SOURCE>
+        $<$<CONFIG:Release,RelWithDebInfo>:-D_FORTIFY_SOURCE=3>
     )
 
     # OpenSSF: Format security check
@@ -72,7 +74,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang
     check_linker_flag(CXX "LINKER:-z,relro" QTSCRIBE_HAS_RELRO)
     if(QTSCRIBE_HAS_RELRO)
         target_link_options(qtscribe_compiler_flags INTERFACE
-            $<$<CONFIG:Release>:LINKER:-z,relro>
+            $<$<CONFIG:Release,RelWithDebInfo>:LINKER:-z,relro>
         )
     endif()
 
@@ -80,7 +82,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang
     check_linker_flag(CXX "LINKER:-z,now" QTSCRIBE_HAS_BIND_NOW)
     if(QTSCRIBE_HAS_BIND_NOW)
         target_link_options(qtscribe_compiler_flags INTERFACE
-            $<$<CONFIG:Release>:LINKER:-z,now>
+            $<$<CONFIG:Release,RelWithDebInfo>:LINKER:-z,now>
         )
     endif()
 
@@ -88,7 +90,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang
     check_linker_flag(CXX "LINKER:-z,noexecstack" QTSCRIBE_HAS_NOEXECSTACK)
     if(QTSCRIBE_HAS_NOEXECSTACK)
         target_link_options(qtscribe_compiler_flags INTERFACE
-            $<$<CONFIG:Release>:LINKER:-z,noexecstack>
+            $<$<CONFIG:Release,RelWithDebInfo>:LINKER:-z,noexecstack>
         )
     endif()
 
@@ -96,21 +98,21 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang
     check_linker_flag(CXX "LINKER:--gc-sections" QTSCRIBE_HAS_GC_SECTIONS)
     if(QTSCRIBE_HAS_GC_SECTIONS)
         target_link_options(qtscribe_compiler_flags INTERFACE
-            $<$<CONFIG:Release>:LINKER:--gc-sections>
+            $<$<CONFIG:Release,RelWithDebInfo>:LINKER:--gc-sections>
         )
     endif()
 
     check_linker_flag(CXX "LINKER:--as-needed" QTSCRIBE_HAS_AS_NEEDED)
     if(QTSCRIBE_HAS_AS_NEEDED)
         target_link_options(qtscribe_compiler_flags INTERFACE
-            $<$<CONFIG:Release>:LINKER:--as-needed>
+            $<$<CONFIG:Release,RelWithDebInfo>:LINKER:--as-needed>
         )
     endif()
 
     check_linker_flag(CXX "LINKER:-O1" QTSCRIBE_HAS_LINKER_O1)
     if(QTSCRIBE_HAS_LINKER_O1)
         target_link_options(qtscribe_compiler_flags INTERFACE
-            $<$<CONFIG:Release>:LINKER:-O1>
+            $<$<CONFIG:Release,RelWithDebInfo>:LINKER:-O1>
         )
     endif()
 
@@ -118,7 +120,7 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang
         $<$<CONFIG:Release>:QT_NO_DEBUG_OUTPUT>
         $<$<CONFIG:Release>:QT_NO_INFO_OUTPUT>
         $<$<CONFIG:Release>:KEYINJECTORD_NO_DEBUG_OUTPUT>
-        $<$<CONFIG:Release>:QT_USE_QSTRINGBUILDER>
+        $<$<CONFIG:Release,RelWithDebInfo>:QT_USE_QSTRINGBUILDER>
     )
 endif()
 

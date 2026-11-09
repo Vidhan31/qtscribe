@@ -1,5 +1,6 @@
 #include "ApiKeyStore.h"
 #include "GeminiSttClient.h"
+#include "AbstractCloudSttClient.h"
 #include "mock_network_access_manager.h"
 
 #include <QCoreApplication>
@@ -92,7 +93,7 @@ private slots:
         client.setKeyStore(store);
 
         QSignalSpy spyKeyChanged(&client, &GeminiSttClient::apiKeyChanged);
-        QSignalSpy spyKeySetChanged(&client, &AbstractSttClient::apiKeySetChanged);
+        QSignalSpy spyKeySetChanged(&client, &AbstractCloudSttClient::apiKeySetChanged);
 
         client.setApiKey(u"  AIzaSyTest_new_active_key_12345  "_s);
 
@@ -148,7 +149,7 @@ private slots:
 
         QCOMPARE(errorSpy.count(), 1);
         QCOMPARE(errorSpy.first().at(0).toString(), u"Gemini API key is not set"_s);
-        QCOMPARE(client.errorCategory(), AbstractSttClient::ErrorCategory::InvalidApiKey);
+        QCOMPARE(client.errorCategory(), AbstractCloudSttClient::ErrorCategory::InvalidApiKey);
         QVERIFY(!client.isApiKeySet());
         QVERIFY(!client.isReady());
     }
@@ -206,13 +207,13 @@ private slots:
         client.setNetworkAccessManager(mockNam);
 
         QSignalSpy errorSpy(&client, &AbstractSttClient::errorOccurred);
-        QSignalSpy rateSpy(&client, &AbstractSttClient::isRateLimitedChanged);
+        QSignalSpy rateSpy(&client, &AbstractCloudSttClient::isRateLimitedChanged);
 
         client.transcribe(QByteArray("RIFFfakeWavData"));
 
         QTRY_VERIFY(client.isRateLimited());
         QCOMPARE(client.retrySecondsRemaining(), 10);
-        QCOMPARE(client.errorCategory(), AbstractSttClient::ErrorCategory::RateLimited);
+        QCOMPARE(client.errorCategory(), AbstractCloudSttClient::ErrorCategory::RateLimited);
         QVERIFY(errorSpy.count() >= 1);
     }
 
@@ -225,13 +226,13 @@ private slots:
         mockNam->nextResponseData = R"({"error": {"message": "API key not valid. Please pass a valid API key."}})";
         client.setNetworkAccessManager(mockNam);
 
-        QSignalSpy keyInvalidSpy(&client, &AbstractSttClient::isApiKeyInvalidChanged);
+        QSignalSpy keyInvalidSpy(&client, &AbstractCloudSttClient::isApiKeyInvalidChanged);
         QSignalSpy errorSpy(&client, &AbstractSttClient::errorOccurred);
 
         client.transcribe(QByteArray("RIFFfakeWavData"));
 
         QTRY_VERIFY(client.isApiKeyInvalid());
-        QCOMPARE(client.errorCategory(), AbstractSttClient::ErrorCategory::InvalidApiKey);
+        QCOMPARE(client.errorCategory(), AbstractCloudSttClient::ErrorCategory::InvalidApiKey);
         QCOMPARE(errorSpy.count(), 1);
     }
 

@@ -12,8 +12,8 @@ StyledCard {
     signal shortcutGuideRequested
 
     customRadius: Theme.radiusMd
-    customBorderColor: DictationCoordinator.recording ? Theme.colorDanger : Theme.cardBorder
-    customBorderWidth: DictationCoordinator.recording ? 2 : 1
+    customBorderColor: DaemonClient.recording ? Theme.colorDanger : Theme.cardBorder
+    customBorderWidth: DaemonClient.recording ? 2 : 1
     padding: Theme.spacingLg
 
     Behavior on customBorderColor {
@@ -35,8 +35,8 @@ StyledCard {
                 anchors.fill: parent
                 radius: width / 2
                 color: Theme.colorDanger
-                opacity: DictationCoordinator.recording ? 0.25 : 0.0
-                visible: DictationCoordinator.recording
+                opacity: DaemonClient.recording ? 0.25 : 0.0
+                visible: DaemonClient.recording
 
                 Behavior on opacity {
                     NumberAnimation {
@@ -45,7 +45,7 @@ StyledCard {
                 }
 
                 SequentialAnimation on scale {
-                    running: DictationCoordinator.recording
+                    running: DaemonClient.recording
                     loops: Animation.Infinite
                     ScaleAnimator {
                         to: 1.18
@@ -63,26 +63,25 @@ StyledCard {
                 anchors.fill: parent
                 activeFocusOnTab: true
                 Accessible.role: Accessible.Button
-                Accessible.name: DictationCoordinator.recording ? qsTr("Stop Dictation") : (
-                                                                      DictationCoordinator.recordingMode
-                                                                      === DictationCoordinator.PushToTalk ? qsTr(
-                                                                                                                "Push to Talk") :
-                                                                                                            qsTr("Start Dictation"))
-                Accessible.description: DictationCoordinator.recordingMode === DictationCoordinator.PushToTalk ? qsTr(
-                                                                                                                     "Push to talk speech recognition") :
-                                                                                                                 qsTr("Toggle speech recognition recording")
-                enabled: DictationCoordinator.canRecord
+                Accessible.name: DaemonClient.recording ? qsTr("Stop Dictation") : (DaemonClient.recordingMode
+                                                                                    === DaemonClient.PushToTalk ? qsTr(
+                                                                                                                      "Push to Talk") :
+                                                                                                                  qsTr("Start Dictation"))
+                Accessible.description: DaemonClient.recordingMode === DaemonClient.PushToTalk ? qsTr(
+                                                                                                     "Push to talk speech recognition") :
+                                                                                                 qsTr("Toggle speech recognition recording")
+                enabled: DaemonClient.canRecord
 
                 background: Rectangle {
                     radius: recordBtn.width / 2
                     color: {
                         if (!recordBtn.enabled)
                         return Theme.controlBg;
-                        if (DictationCoordinator.recording)
+                        if (DaemonClient.recording)
                         return recordBtn.down ? Theme.buttonDangerBgPressed : (recordBtn.hovered
                                                                                ? Theme.buttonDangerBgHover :
                                                                                  Theme.buttonDangerBg);
-                        if (DictationCoordinator.isBusy)
+                        if (DaemonClient.isBusy)
                         return Theme.colorWarning;
                         return recordBtn.down ? Theme.buttonPrimaryBgPressed : (recordBtn.hovered
                                                                                 ? Theme.buttonPrimaryBgHover :
@@ -114,7 +113,7 @@ StyledCard {
                             source: "qrc:/qt/qml/QtScribe/assets/icons/mic.svg"
                             sourceSize.width: 24
                             sourceSize.height: 24
-                            visible: !DictationCoordinator.recording && !DictationCoordinator.isBusy
+                            visible: !DaemonClient.recording && !DaemonClient.isBusy
                             smooth: true
                         }
 
@@ -125,7 +124,7 @@ StyledCard {
                             source: "qrc:/qt/qml/QtScribe/assets/icons/stop.svg"
                             sourceSize.width: 22
                             sourceSize.height: 22
-                            visible: DictationCoordinator.recording
+                            visible: DaemonClient.recording
                             smooth: true
                         }
 
@@ -136,11 +135,11 @@ StyledCard {
                             source: "qrc:/qt/qml/QtScribe/assets/icons/spinner.svg"
                             sourceSize.width: 24
                             sourceSize.height: 24
-                            visible: DictationCoordinator.isBusy
+                            visible: DaemonClient.isBusy
                             smooth: true
 
                             RotationAnimation on rotation {
-                                running: DictationCoordinator.isBusy
+                                running: DaemonClient.isBusy
                                 loops: Animation.Infinite
                                 from: 0
                                 to: 360
@@ -150,12 +149,11 @@ StyledCard {
                     }
 
                     StyledText {
-                        text: DictationCoordinator.recording ? qsTr("Stop") : (DictationCoordinator.isBusy ? qsTr(
-                                                                                                                 "Processing…") :
-                                                                                                             (DictationCoordinator.recordingMode
-                                                                                                              === DictationCoordinator.PushToTalk
-                                                                                                              ? qsTr("Talk") :
-                                                                                                                qsTr("Record")))
+                        text: DaemonClient.recording ? qsTr("Stop") : (DaemonClient.isBusy ? qsTr("Processing…") : (
+                                                                                                 DaemonClient.recordingMode
+                                                                                                 === DaemonClient.PushToTalk
+                                                                                                 ? qsTr("Talk") : qsTr(
+                                                                                                       "Record")))
                         variant: "caption"
                         customWeight: Font.DemiBold
                         colorRole: "onAccent"
@@ -165,10 +163,10 @@ StyledCard {
                 }
 
                 onClicked: {
-                    if (!DictationCoordinator.recording && DaemonDiagnosticModel.clipboardWarningRequired) {
+                    if (!DaemonClient.recording && DaemonDiagnosticModel.clipboardWarningRequired) {
                         root.clipboardWarningRequested();
                     } else {
-                        DictationCoordinator.toggleRecording();
+                        DaemonClient.toggleRecording();
                     }
                 }
             }
@@ -178,7 +176,7 @@ StyledCard {
     Item {
         Layout.fillWidth: true
         implicitHeight: 32
-        visible: DictationCoordinator.recording
+        visible: DaemonClient.recording
 
         RowLayout {
             anchors.centerIn: parent
@@ -212,8 +210,7 @@ StyledCard {
                         anchors.bottom: parent.bottom
                         anchors.horizontalCenter: parent.horizontalCenter
                         width: 4
-                        height: Math.max(4, 28 * Math.min(DictationCoordinator.audioLevel * waveformBar.multiplier,
-                                                          1.0))
+                        height: Math.max(4, 28 * Math.min(DaemonClient.audioLevel * waveformBar.multiplier, 1.0))
 
                         radius: Theme.radiusXs / 2
                         color: Theme.colorSuccess
@@ -231,7 +228,7 @@ StyledCard {
 
     StyledText {
         id: audioStatusText
-        text: DictationCoordinator.statusMessage
+        text: DaemonClient.statusMessage
         variant: "caption"
         colorRole: "secondary"
         horizontalAlignment: Text.AlignHCenter
@@ -242,14 +239,14 @@ StyledCard {
 
     StyledText {
         id: modeHintText
-        text: DictationCoordinator.recordingMode === DictationCoordinator.PushToTalk ? qsTr(
-                                                                                           "Push-to-Talk: Hold Ctrl+Shift+Space to talk") :
-                                                                                       qsTr("Toggle Mode: Press Ctrl+Shift+Space to start / stop")
+        text: DaemonClient.recordingMode === DaemonClient.PushToTalk ? qsTr(
+                                                                           "Push-to-Talk: Hold Ctrl+Shift+Space to talk") :
+                                                                       qsTr("Toggle Mode: Press Ctrl+Shift+Space to start / stop")
         variant: "caption"
         colorRole: "secondary"
         horizontalAlignment: Text.AlignHCenter
         Layout.fillWidth: true
-        visible: !DictationCoordinator.recording && !DictationCoordinator.isBusy
+        visible: !DaemonClient.recording && !DaemonClient.isBusy
     }
 
     SystemStatusFooter {

@@ -75,8 +75,8 @@ bool validateDirectoryAncestry(const std::filesystem::path& rawPath, AuthResult*
 bool validateExecutableTopology(const std::filesystem::path& parentExePath, const std::filesystem::path& selfExePath,
                                 AuthResult* outResult, bool allowDevMode, struct stat* outParentStat,
                                 bool rejectGroupWritable) {
-    std::string parentStr = parentExePath.string();
-    std::string selfStr = selfExePath.string();
+    const std::string parentStr = parentExePath.string();
+    const std::string selfStr = selfExePath.string();
 
     if (parentStr.empty() || selfStr.empty()) {
         KEYINJECTORD_LOG_ERROR("Launcher authorization failed: empty executable path");
@@ -95,7 +95,7 @@ bool validateExecutableTopology(const std::filesystem::path& parentExePath, cons
         return setResult(outResult, AuthResult::UntrustedLocation);
     }
 
-    std::string parentExeName = parentExePath.filename().string();
+    const std::string parentExeName = parentExePath.filename().string();
     if (allowDevMode) {
         if (parentExeName != "qtscribed" && parentExeName != "test_ipc_server" &&
             parentExeName != "test_transcription_pipeline") {
@@ -111,8 +111,8 @@ bool validateExecutableTopology(const std::filesystem::path& parentExePath, cons
         }
     }
 
-    std::filesystem::path parentDir = parentExePath.parent_path().lexically_normal();
-    std::filesystem::path selfDir = selfExePath.parent_path().lexically_normal();
+    const std::filesystem::path parentDir = parentExePath.parent_path().lexically_normal();
+    const std::filesystem::path selfDir = selfExePath.parent_path().lexically_normal();
 
     if (parentExePath != selfExePath && parentDir != selfDir) {
         KEYINJECTORD_LOG_ERROR(
@@ -168,7 +168,7 @@ bool authorizeLauncher(int socketFd, AuthResult* outResult, bool allowDevMode, b
     }
 
     struct stat peerFdStat {};
-    int peerExeFd = ProcfsUtils::openProcExeFd(peerCreds.pid, &peerFdStat, outResult);
+    const int peerExeFd = ProcfsUtils::openProcExeFd(peerCreds.pid, &peerFdStat, outResult);
     if (peerExeFd < 0) {
         return false;
     }
@@ -180,7 +180,7 @@ bool authorizeLauncher(int socketFd, AuthResult* outResult, bool allowDevMode, b
     }
 
     struct stat selfFdStat {};
-    int selfExeFd = ProcfsUtils::openSelfExeFd(&selfFdStat, outResult);
+    const int selfExeFd = ProcfsUtils::openSelfExeFd(&selfFdStat, outResult);
     if (selfExeFd < 0) {
         close(peerExeFd);
         return false;

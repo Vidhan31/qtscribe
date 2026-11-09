@@ -244,14 +244,14 @@ Item {
                 description: qsTr(
                                  "Required for cloud speech recognition and LLM text enhancement (Free tier available)")
                 rowDescription: qsTr("Enter your secret Groq API key starting with 'gsk_'")
-                apiKey: GroqSttClient.apiKey
+                apiKey: AppSettings.groqApiKey
                 placeholderText: qsTr("gsk_...")
                 helpText: qsTr(
                               "Free API keys available with generous quotas at console.groq.com. Stored securely in system keychain (with configuration fallback).")
                 linkButtonText: qsTr("Get Free API Key")
                 linkUrl: "https://console.groq.com/keys"
                 onSaveRequested: key => {
-                    GroqSttClient.apiKey = key;
+                    AppSettings.groqApiKey = key;
                 }
             }
 
@@ -271,12 +271,12 @@ Item {
                         valueRole: "code"
                         model: whisperModelsModel
                         currentIndex: {
-                            const idx = indexOfValue(GroqSttClient.selectedModel);
+                            const idx = indexOfValue(AppSettings.groqSttModel);
                             return idx >= 0 ? idx : 0;
                         }
 
                         onActivated: index => {
-                            GroqSttClient.selectedModel = currentValue;
+                            AppSettings.groqSttModel = currentValue;
                         }
                     }
                 }
@@ -295,12 +295,12 @@ Item {
                         valueRole: "code"
                         model: languageOptionsModel
                         currentIndex: {
-                            const idx = indexOfValue(GroqSttClient.language);
+                            const idx = indexOfValue(AppSettings.groqLanguage);
                             return idx >= 0 ? idx : 0;
                         }
 
                         onActivated: index => {
-                            GroqSttClient.language = currentValue;
+                            AppSettings.groqLanguage = currentValue;
                         }
                     }
                 }
@@ -311,13 +311,13 @@ Item {
                 description: qsTr("Guide the cloud transcriber with specialized acronyms, names, or terminology")
                 fieldLabel: qsTr("Custom Prompt / Words")
                 placeholderText: qsTr("e.g. QtScribe, Wayland, Qt6, CMake, JSON, PyTorch, Neovim, kubectl...")
-                vocabulary: GroqSttClient.customPrompt
+                vocabulary: AppSettings.groqCustomPrompt
                 maxCharacters: 800
                 onVocabularySaved: text => {
-                    GroqSttClient.customPrompt = text;
+                    AppSettings.groqCustomPrompt = text;
                 }
                 onVocabularyCleared: {
-                    GroqSttClient.customPrompt = "";
+                    AppSettings.groqCustomPrompt = "";
                 }
             }
         }
@@ -336,9 +336,9 @@ Item {
                     id: enableSwitch
                     title: qsTr("Enable Text Enhancement")
                     description: qsTr("Apply style formatting and corrections to transcribed text")
-                    checked: GroqLlmClient.enabled
+                    checked: AppSettings.llmEnabled
                     onToggled: {
-                        GroqLlmClient.enabled = enableSwitch.checked;
+                        AppSettings.llmEnabled = enableSwitch.checked;
                     }
                 }
 
@@ -348,8 +348,8 @@ Item {
                     title: qsTr("Enhancement Model")
                     description: qsTr("Cloud language model used for post-processing text")
                     layoutVertical: true
-                    opacity: GroqLlmClient.enabled ? 1.0 : 0.5
-                    enabled: GroqLlmClient.enabled
+                    opacity: AppSettings.llmEnabled ? 1.0 : 0.5
+                    enabled: AppSettings.llmEnabled
 
                     StyledComboBox {
                         id: llmModelCombo
@@ -358,12 +358,12 @@ Item {
                         valueRole: "code"
                         model: llmModelOptionsModel
                         currentIndex: {
-                            const idx = indexOfValue(GroqLlmClient.selectedModel);
+                            const idx = indexOfValue(AppSettings.llmModel);
                             return idx >= 0 ? idx : 0;
                         }
 
                         onActivated: index => {
-                            GroqLlmClient.selectedModel = currentValue;
+                            AppSettings.llmModel = currentValue;
                         }
                     }
                 }
@@ -374,8 +374,8 @@ Item {
                     title: qsTr("Style Preset")
                     description: qsTr("Choose how voice transcriptions are structured and polished")
                     layoutVertical: true
-                    opacity: GroqLlmClient.enabled ? 1.0 : 0.5
-                    enabled: GroqLlmClient.enabled
+                    opacity: AppSettings.llmEnabled ? 1.0 : 0.5
+                    enabled: AppSettings.llmEnabled
 
                     StyledComboBox {
                         id: presetCombo
@@ -384,12 +384,12 @@ Item {
                         valueRole: "code"
                         model: presetOptionsModel
                         currentIndex: {
-                            const idx = indexOfValue(GroqLlmClient.activePreset);
+                            const idx = indexOfValue(AppSettings.llmPreset);
                             return idx >= 0 ? idx : 0;
                         }
 
                         onActivated: index => {
-                            GroqLlmClient.activePreset = currentValue;
+                            AppSettings.llmPreset = currentValue;
                         }
                     }
                 }
@@ -399,8 +399,8 @@ Item {
                 title: qsTr("Style Precision / Creativity")
                 description: qsTr(
                                  "Lower values produce exact corrections; higher values produce more creative rewrites")
-                opacity: GroqLlmClient.enabled ? 1.0 : 0.5
-                enabled: GroqLlmClient.enabled
+                opacity: AppSettings.llmEnabled ? 1.0 : 0.5
+                enabled: AppSettings.llmEnabled
 
                 ColumnLayout {
                     Layout.fillWidth: true
@@ -428,7 +428,7 @@ Item {
                         }
 
                         StyledText {
-                            text: GroqLlmClient.formattedTemperature
+                            text: AppSettings.formattedLlmTemperature
                             variant: "body"
                             customWeight: Font.Bold
                             colorRole: "accent"
@@ -441,9 +441,9 @@ Item {
                             text: qsTr("Reset")
                             variant: "flat"
                             size: "small"
-                            enabled: Math.abs(GroqLlmClient.temperature - 0.1) > 0.01
+                            enabled: Math.abs(AppSettings.llmTemperature - 0.1) > 0.01
                             onClicked: {
-                                GroqLlmClient.temperature = 0.1;
+                                AppSettings.llmTemperature = 0.1;
                             }
                         }
                     }
@@ -454,22 +454,21 @@ Item {
                         from: 0.0
                         to: 1.0
                         stepSize: 0.05
-                        value: GroqLlmClient.temperature
+                        value: AppSettings.llmTemperature
                         onMoved: {
-                            GroqLlmClient.temperature = tempSlider.value;
+                            AppSettings.llmTemperature = tempSlider.value;
                         }
                     }
                 }
             }
 
             StyledCard {
-                title: GroqLlmClient.activePreset === "custom" ? qsTr("Custom Instructions") : qsTr(
-                                                                     "Preset Instructions")
-                description: GroqLlmClient.activePreset === "custom" ? qsTr(
-                                                                           "Define specific formatting and transformation instructions") :
-                                                                       qsTr("Standard instructions applied by the selected preset")
-                opacity: GroqLlmClient.enabled ? 1.0 : 0.5
-                enabled: GroqLlmClient.enabled
+                title: AppSettings.llmPreset === "custom" ? qsTr("Custom Instructions") : qsTr("Preset Instructions")
+                description: AppSettings.llmPreset === "custom" ? qsTr(
+                                                                      "Define specific formatting and transformation instructions") :
+                                                                  qsTr("Standard instructions applied by the selected preset")
+                opacity: AppSettings.llmEnabled ? 1.0 : 0.5
+                enabled: AppSettings.llmEnabled
 
                 PreferenceRow {
                     layoutVertical: true
@@ -478,8 +477,8 @@ Item {
                         Layout.fillWidth: true
 
                         StyledText {
-                            text: GroqLlmClient.activePreset === "custom" ? qsTr("Instructions") : qsTr(
-                                                                                "Instructions (Read-only)")
+                            text: AppSettings.llmPreset === "custom" ? qsTr("Instructions") : qsTr(
+                                                                           "Instructions (Read-only)")
                             variant: "body"
                             customWeight: Font.Medium
                         }
@@ -489,9 +488,9 @@ Item {
                         }
 
                         StyledText {
-                            text: GroqLlmClient.activePreset === "custom" ? qsTr("%1 characters").arg(
-                                                                                customPromptArea.text.length) : qsTr(
-                                                                                "Preset Managed")
+                            text: AppSettings.llmPreset === "custom" ? qsTr("%1 characters").arg(
+                                                                           customPromptArea.text.length) : qsTr(
+                                                                           "Preset Managed")
                             variant: "caption"
                             colorRole: "secondary"
                         }
@@ -504,10 +503,10 @@ Item {
 
                         T.TextArea {
                             id: customPromptArea
-                            readOnly: GroqLlmClient.activePreset !== "custom"
-                            text: GroqLlmClient.activePreset === "custom" ? GroqLlmClient.customPrompt :
-                                                                            GroqLlmClient.systemPromptForPreset(
-                                                                                GroqLlmClient.activePreset)
+                            readOnly: AppSettings.llmPreset !== "custom"
+                            text: AppSettings.llmPreset === "custom" ? AppSettings.llmCustomPrompt :
+                                                                       AppSettings.systemPromptForPreset(
+                                                                           AppSettings.llmPreset)
                             placeholderText: qsTr(
                                                  "e.g. Clean up spoken language, fix grammar, and format lists in markdown...")
                             placeholderTextColor: Theme.textPlaceholder
@@ -528,7 +527,7 @@ Item {
                             }
 
                             onTextChanged: {
-                                if (activeFocus && GroqLlmClient.activePreset === "custom") {
+                                if (activeFocus && AppSettings.llmPreset === "custom") {
                                     saveLlmPromptTimer.restart();
                                 }
                             }
@@ -540,8 +539,8 @@ Item {
                         interval: 350
                         repeat: false
                         onTriggered: {
-                            if (GroqLlmClient.activePreset === "custom") {
-                                GroqLlmClient.customPrompt = customPromptArea.text;
+                            if (AppSettings.llmPreset === "custom") {
+                                AppSettings.llmCustomPrompt = customPromptArea.text;
                             }
                         }
                     }
@@ -549,7 +548,7 @@ Item {
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: Theme.spacingSm
-                        visible: GroqLlmClient.activePreset === "custom"
+                        visible: AppSettings.llmPreset === "custom"
 
                         Item {
                             Layout.fillWidth: true
@@ -563,7 +562,7 @@ Item {
                             size: "small"
                             onClicked: {
                                 customPromptArea.text = "";
-                                GroqLlmClient.customPrompt = "";
+                                AppSettings.llmCustomPrompt = "";
                             }
                         }
 
@@ -575,7 +574,7 @@ Item {
                             variant: "primary"
                             onClicked: {
                                 saveLlmPromptTimer.stop();
-                                GroqLlmClient.customPrompt = customPromptArea.text;
+                                AppSettings.llmCustomPrompt = customPromptArea.text;
                             }
                         }
                     }

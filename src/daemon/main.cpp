@@ -3,6 +3,7 @@
 #include "LoggingCategories.h"
 
 #include "ApplicationContext.h"
+#include "SystemService.h"
 
 #include <QCommandLineOption>
 #include <QCommandLineParser>
@@ -32,21 +33,21 @@ using namespace std::chrono_literals;
  */
 int main(int argc, char* argv[]) {
     QCoreApplication app(argc, argv);
-    app.setApplicationName(u"QtScribe"_s);
-    app.setApplicationVersion(u"" QTSCRIBE_VERSION ""_s);
-    app.setOrganizationName(u"QtScribe"_s);
-    app.setOrganizationDomain(u"io.github.qtscribe"_s);
+    QCoreApplication::setApplicationName(u"QtScribe"_s);
+    QCoreApplication::setApplicationVersion(u"" QTSCRIBE_VERSION ""_s);
+    QCoreApplication::setOrganizationName(u"QtScribe"_s);
+    QCoreApplication::setOrganizationDomain(u"io.github.qtscribe"_s);
 
     QCommandLineParser parser;
     parser.setApplicationDescription(u"QtScribe Daemon — Headless Speech-to-Text service"_s);
     parser.addHelpOption();
     parser.addVersionOption();
 
-    QCommandLineOption toggleOption({u"t"_s, u"toggle"_s}, u"Toggle speech-to-text recording"_s);
-    QCommandLineOption startOption(u"start"_s, u"Start speech-to-text recording"_s);
-    QCommandLineOption stopOption(u"stop"_s, u"Stop speech-to-text recording"_s);
-    QCommandLineOption showOption({u"s"_s, u"show"_s}, u"Show and activate the settings window"_s);
-    QCommandLineOption quitOption({u"q"_s, u"quit"_s}, u"Quit the running daemon"_s);
+    const QCommandLineOption toggleOption({u"t"_s, u"toggle"_s}, u"Toggle speech-to-text recording"_s);
+    const QCommandLineOption startOption(u"start"_s, u"Start speech-to-text recording"_s);
+    const QCommandLineOption stopOption(u"stop"_s, u"Stop speech-to-text recording"_s);
+    const QCommandLineOption showOption({u"s"_s, u"show"_s}, u"Show and activate the settings window"_s);
+    const QCommandLineOption quitOption({u"q"_s, u"quit"_s}, u"Quit the running daemon"_s);
 
     parser.addOption(toggleOption);
     parser.addOption(startOption);
@@ -57,17 +58,22 @@ int main(int argc, char* argv[]) {
     parser.process(app);
 
     const auto command = [&]() -> QString {
-        if (parser.isSet(toggleOption))
+        if (parser.isSet(toggleOption)) {
             return u"toggleRecording"_s;
-        if (parser.isSet(startOption))
+        }
+        if (parser.isSet(startOption)) {
             return u"startRecording"_s;
-        if (parser.isSet(stopOption))
+        }
+        if (parser.isSet(stopOption)) {
             return u"stopRecording"_s;
-        if (parser.isSet(quitOption))
+        }
+        if (parser.isSet(quitOption)) {
             return u"quitApp"_s;
-        if (parser.isSet(showOption))
+        }
+        if (parser.isSet(showOption)) {
             return u"showWindow"_s;
-        return QString();
+        }
+        return {};
     }();
 
     if (!QDBusConnection::sessionBus().isConnected()) {
@@ -119,20 +125,22 @@ int main(int argc, char* argv[]) {
     ApplicationContext appContext(&app);
     appContext.initializeHeadless(true);
 
-    auto* coordinator = appContext.dictationCoordinator();
-    if (coordinator) {
-        QObject::connect(coordinator, &DictationCoordinator::requestQuitApp, &app, &QCoreApplication::quit);
+    auto* systemService = appContext.systemService();
+    if (systemService) {
+        QObject::connect(systemService, &SystemService::requestQuitApp, &app, &QCoreApplication::quit);
 
-        QObject::connect(coordinator, &DictationCoordinator::requestShowWindow, [launchGui]() {
+        QObject::connect(systemService, &SystemService::requestShowWindow, [launchGui]() {
             qCDebug(lcSpeech) << "qtscribed: Launching QtScribe GUI on request";
             launchGui({});
         });
 
-        QObject::connect(coordinator, &DictationCoordinator::requestNavigate, [launchGui](const QString& section) {
+        QObject::connect(systemService, &SystemService::requestNavigate, [launchGui](const QString& section) {
             qCDebug(lcSpeech) << "qtscribed: Launching QtScribe GUI navigating to" << section;
             launchGui({u"--section"_s, section});
         });
     }
+
+    auto* coordinator = appContext.dictationCoordinator();
 
     if (parser.isSet(toggleOption) || parser.isSet(startOption)) {
         QTimer::singleShot(200ms, [coordinator]() {
@@ -142,5 +150,5 @@ int main(int argc, char* argv[]) {
         });
     }
 
-    return app.exec();
+    return QCoreApplication::exec();
 }

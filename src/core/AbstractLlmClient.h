@@ -2,11 +2,9 @@
 
 #include <QObject>
 #include <QString>
-#include <QtQmlIntegration/qqmlintegration.h>
 
 class AbstractLlmClient : public QObject {
     Q_OBJECT
-    QML_ANONYMOUS
 
     Q_PROPERTY(bool busy READ isBusy NOTIFY busyChanged FINAL)
     Q_PROPERTY(bool enabled READ enabled WRITE setEnabled NOTIFY enabledChanged FINAL)

@@ -46,7 +46,7 @@ T.ApplicationWindow {
         case "enhancement":
             return "cloud";
         case "dictation":
-            return DictationCoordinator.activeBackend === DictationCoordinator.Cloud ? "cloud" : "offline";
+            return DaemonClient.activeBackend === DaemonClient.Cloud ? "cloud" : "offline";
         default:
             return target;
         }
@@ -67,17 +67,17 @@ T.ApplicationWindow {
     }
 
     onActiveChanged: {
-        DictationCoordinator.setClientWindowFocused(root.active);
+        DaemonClient.setClientWindowFocused(root.active);
     }
 
     onClosing: close => {
         close.accepted = true;
-        DictationCoordinator.setClientWindowFocused(false);
+        DaemonClient.setClientWindowFocused(false);
         Qt.quit();
     }
 
     Connections {
-        target: DictationCoordinator
+        target: DaemonClient
         function onRequestShowWindow() {
             root.show();
             root.raise();
@@ -93,7 +93,7 @@ T.ApplicationWindow {
             root.quitApplication();
         }
         function onActiveBackendChanged() {
-            if (DictationCoordinator.activeBackend === DictationCoordinator.Cloud) {
+            if (DaemonClient.activeBackend === DaemonClient.Cloud) {
                 if (root.currentSectionId === "offline") {
                     root.currentSectionId = "cloud";
                 }
@@ -107,13 +107,7 @@ T.ApplicationWindow {
 
     NavigationModel {
         id: navModel
-        isCloud: DictationCoordinator.activeBackend === DictationCoordinator.Cloud
-    }
-
-    Binding {
-        target: CloudSttRouter
-        property: "activeProviderId"
-        value: CloudProviderModel.activeProviderId
+        isCloud: DaemonClient.activeBackend === DaemonClient.Cloud
     }
 
     RowLayout {

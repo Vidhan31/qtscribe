@@ -1,8 +1,8 @@
 #include "CloudProviderModel.h"
 
-#include "DBusService.h"
-
+#include "common/SettingsKeys.h"
 #include "DaemonClient.h"
+#include "SettingsClient.h"
 
 #include <QDebug>
 #include <QSettings>
@@ -13,6 +13,17 @@ CloudProviderModel::CloudProviderModel(QObject* parent)
     : QAbstractListModel(parent) {
     initializeProviders();
     loadSettings();
+
+    if (auto* sc = SettingsClient::instance()) {
+        connect(sc, &SettingsClient::settingChanged, this, [this](const QString& key, const QVariant& value) {
+            if (key == SettingsKeys::kCloudActiveProvider) {
+                const QString id = value.toString();
+                if (m_activeProviderId != id) {
+                    setActiveProviderId(id);
+                }
+            }
+        });
+    }
 }
 
 int CloudProviderModel::rowCount(const QModelIndex& parent) const {
@@ -171,8 +182,10 @@ void CloudProviderModel::initializeProviders() {
 }
 
 void CloudProviderModel::loadSettings() {
-    QSettings settings;
-    const auto savedProvider = settings.value(u"Cloud/ActiveProvider"_s, u"groq"_s).toString();
+    QString savedProvider = u"groq"_s;
+    if (auto* sc = SettingsClient::instance()) {
+        savedProvider = sc->getSetting(SettingsKeys::kCloudActiveProvider.toString(), u"groq"_s).toString();
+    }
     const QString targetId = (indexOfProvider(savedProvider) >= 0) ? savedProvider : u"groq"_s;
     if (m_activeProviderId != targetId) {
         m_activeProviderId = targetId;
@@ -184,21 +197,7 @@ void CloudProviderModel::loadSettings() {
 }
 
 void CloudProviderModel::saveSettings() {
-    bool ok = false;
-    {
-        QSettings settings;
-        settings.setValue(u"Cloud/ActiveProvider"_s, m_activeProviderId);
-        settings.sync();
-        ok = (settings.status() == QSettings::NoError);
-        if (!ok) {
-            qWarning() << "CloudProviderModel: Failed to save Cloud/ActiveProvider:" << settings.status();
-        }
-    }
-    if (ok) {
-        if (auto* client = DaemonClient::instance()) {
-            client->reloadSettings();
-        } else {
-            DBusService::sendRemoteCommand(u"reloadSettings"_s);
-        }
+    if (auto* sc = SettingsClient::instance()) {
+        sc->setSetting(SettingsKeys::kCloudActiveProvider.toString(), m_activeProviderId);
     }
 }

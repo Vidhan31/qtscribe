@@ -7,13 +7,16 @@ class ApiKeyStore;
 class AudioFeedbackPlayer;
 class DBusService;
 class DictationCoordinator;
+class HistoryRepository;
 class GlobalShortcutManager;
 class GroqLlmClient;
 class GroqSttClient;
 class AbstractLlmClient;
 class LinuxNotificationService;
+class ModelService;
 class StatusNotifierService;
 class SystemHealthMonitor;
+class SystemService;
 class AbstractTextInjector;
 class TextInjector;
 class DaemonConnector;
@@ -23,6 +26,8 @@ class GeminiSttClient;
 class CloudSttRouter;
 class CompositeSttEngine;
 class NotificationPresenter;
+class SettingsManager;
+class SettingsService;
 
 class ApplicationContext : public QObject {
     Q_OBJECT
@@ -36,6 +41,7 @@ public:
     void reloadSettings();
 
     [[nodiscard]] DictationCoordinator* dictationCoordinator() const noexcept;
+    [[nodiscard]] HistoryRepository* historyRepository() const noexcept;
     [[nodiscard]] CompositeSttEngine* compositeSttEngine() const noexcept;
     [[nodiscard]] NotificationPresenter* notificationPresenter() const noexcept;
     [[nodiscard]] SystemHealthMonitor* systemHealthMonitor() const noexcept;
@@ -54,6 +60,10 @@ public:
     [[nodiscard]] DBusService* dbusService() const noexcept;
     [[nodiscard]] StatusNotifierService* statusNotifierService() const noexcept;
     [[nodiscard]] LinuxNotificationService* notificationService() const noexcept;
+    [[nodiscard]] ModelService* modelService() const noexcept;
+    [[nodiscard]] SystemService* systemService() const noexcept;
+    [[nodiscard]] SettingsManager* settingsManager() const noexcept;
+    [[nodiscard]] SettingsService* settingsService() const noexcept;
 
 private:
     void wireSubsystems();
@@ -71,11 +81,16 @@ private:
     DaemonConnector* m_daemonConnector = nullptr;
     TextInjector* m_textInjector = nullptr;
     DictationCoordinator* m_dictationCoordinator = nullptr;
+    HistoryRepository* m_historyRepository = nullptr;
     SystemHealthMonitor* m_healthMonitor = nullptr;
     AudioFeedbackPlayer* m_feedbackPlayer = nullptr;
     DBusService* m_dbusService = nullptr;
     StatusNotifierService* m_statusNotifierService = nullptr;
     LinuxNotificationService* m_notificationService = nullptr;
+    ModelService* m_modelService = nullptr;
+    SystemService* m_systemService = nullptr;
+    SettingsManager* m_settingsManager = nullptr;
+    SettingsService* m_settingsService = nullptr;
 
     bool m_initialized = false;
 };

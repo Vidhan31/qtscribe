@@ -9,7 +9,7 @@ Item {
 
     signal shortcutGuideRequested
 
-    visible: SystemHealthMonitor.systemShortcutHasIssue || SystemHealthMonitor.directTypingHasIssue
+    visible: DaemonClient.systemShortcutHasIssue || DaemonClient.textInjectionHasIssue
     Layout.fillWidth: true
     implicitHeight: 32
 
@@ -30,7 +30,7 @@ Item {
 
             RowLayout {
                 id: shortcutStatusRow
-                visible: SystemHealthMonitor.systemShortcutHasIssue
+                visible: DaemonClient.systemShortcutHasIssue
                 spacing: 6
 
                 StyledIcon {
@@ -46,12 +46,12 @@ Item {
                     implicitHeight: 6
                     radius: 3
                     Layout.alignment: Qt.AlignVCenter
-                    color: SystemHealthMonitor.systemShortcutSupported ? Theme.colorWarning : Theme.colorDanger
+                    color: DaemonClient.shortcutSupported ? Theme.colorWarning : Theme.colorDanger
                 }
 
                 StyledText {
-                    text: SystemHealthMonitor.systemShortcutStatus.length > 0
-                          ? SystemHealthMonitor.systemShortcutStatus : qsTr("Global shortcut unavailable")
+                    text: DaemonClient.shortcutStatusMessage.length > 0 ? DaemonClient.shortcutStatusMessage : qsTr(
+                                                                              "Global shortcut unavailable")
                     variant: "caption"
                     colorRole: "secondary"
                     Layout.alignment: Qt.AlignVCenter
@@ -60,7 +60,7 @@ Item {
                 StyledButton {
                     id: setupGuideBtn
                     text: qsTr("Setup Guide")
-                    visible: !SystemHealthMonitor.systemShortcutSupported
+                    visible: !DaemonClient.shortcutSupported
                     variant: "flat"
                     size: "small"
                     onClicked: root.shortcutGuideRequested()
@@ -69,15 +69,15 @@ Item {
 
             StyledDivider {
                 id: statusDivider
-                visible: SystemHealthMonitor.systemShortcutHasIssue && SystemHealthMonitor.directTypingHasIssue
+                visible: DaemonClient.systemShortcutHasIssue && DaemonClient.textInjectionHasIssue
                 orientation: Qt.Vertical
                 implicitHeight: 14
                 Layout.alignment: Qt.AlignVCenter
             }
 
             RowLayout {
-                id: directTypingStatusRow
-                visible: SystemHealthMonitor.directTypingHasIssue
+                id: textInjectionStatusRow
+                visible: DaemonClient.textInjectionHasIssue
                 spacing: 6
 
                 StyledIcon {
@@ -93,11 +93,11 @@ Item {
                     implicitHeight: 6
                     radius: 3
                     Layout.alignment: Qt.AlignVCenter
-                    color: SystemHealthMonitor.directTypingFatalError ? Theme.colorDanger : Theme.colorWarning
+                    color: DaemonClient.textInjectionHasFatalError ? Theme.colorDanger : Theme.colorWarning
                 }
 
                 StyledText {
-                    text: SystemHealthMonitor.directTypingStatus
+                    text: DaemonClient.textInjectionStatus
                     variant: "caption"
                     colorRole: "secondary"
                     Layout.alignment: Qt.AlignVCenter

@@ -9,13 +9,12 @@
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
-#include <QSettings>
 #include <QStandardPaths>
 
 using namespace Qt::StringLiterals;
 
 WhisperSttClient::WhisperSttClient(QObject* parent)
-    : AbstractSttClient(parent)
+    : AbstractOfflineSttClient(parent)
     , m_worker(new WhisperWorker()) {
     m_worker->moveToThread(&m_workerThread);
 
@@ -148,7 +147,7 @@ QString WhisperSttClient::lastError() const {
     return m_lastError;
 }
 
-bool WhisperSttClient::isVulkanSupported() const {
+bool WhisperSttClient::isVulkanSupported() {
 #if defined(GGML_USE_VULKAN)
     return true;
 #else

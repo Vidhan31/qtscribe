@@ -21,7 +21,7 @@ public:
     IpcServer& operator=(const IpcServer&) = delete;
 
     void run();
-    void stop();
+    void stop() const;
 
     ResponseStatus handleOpcode(Opcode op);
 

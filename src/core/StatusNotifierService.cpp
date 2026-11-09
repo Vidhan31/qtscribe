@@ -3,6 +3,8 @@
 #include "DictationCoordinator.h"
 #include "LoggingCategories.h"
 
+#include "SystemService.h"
+
 #include <QCoreApplication>
 #include <QDBusConnection>
 #include <QDBusInterface>
@@ -99,64 +101,64 @@ StatusNotifierItemAdaptor::StatusNotifierItemAdaptor(StatusNotifierService* pare
     : QDBusAbstractAdaptor(parent)
     , m_service(parent) { }
 
-QString StatusNotifierItemAdaptor::category() const {
+QString StatusNotifierItemAdaptor::category() {
     return u"ApplicationStatus"_s;
 }
 
-QString StatusNotifierItemAdaptor::id() const {
+QString StatusNotifierItemAdaptor::id() {
     return u"qtscribe"_s;
 }
 
-QString StatusNotifierItemAdaptor::title() const {
+QString StatusNotifierItemAdaptor::title() {
     return u"QtScribe"_s;
 }
 
-QString StatusNotifierItemAdaptor::status() const {
+QString StatusNotifierItemAdaptor::status() {
     return u"Active"_s;
 }
 
-int StatusNotifierItemAdaptor::windowId() const {
+int StatusNotifierItemAdaptor::windowId() {
     return 0;
 }
 
-QString StatusNotifierItemAdaptor::iconThemePath() const {
-    return QString();
+QString StatusNotifierItemAdaptor::iconThemePath() {
+    return {};
 }
 
-QDBusObjectPath StatusNotifierItemAdaptor::menu() const {
+QDBusObjectPath StatusNotifierItemAdaptor::menu() {
     return QDBusObjectPath(u"/MenuBar"_s);
 }
 
-bool StatusNotifierItemAdaptor::itemIsMenu() const {
+bool StatusNotifierItemAdaptor::itemIsMenu() {
     return false;
 }
 
-QString StatusNotifierItemAdaptor::iconName() const {
+QString StatusNotifierItemAdaptor::iconName() {
     return u"io.github.qtscribe"_s;
 }
 
-KDbusImageVector StatusNotifierItemAdaptor::iconPixmap() const {
+KDbusImageVector StatusNotifierItemAdaptor::iconPixmap() {
     return {};
 }
 
-QString StatusNotifierItemAdaptor::overlayIconName() const {
-    return QString();
-}
-
-KDbusImageVector StatusNotifierItemAdaptor::overlayIconPixmap() const {
+QString StatusNotifierItemAdaptor::overlayIconName() {
     return {};
 }
 
-QString StatusNotifierItemAdaptor::attentionIconName() const {
-    return QString();
-}
-
-KDbusImageVector StatusNotifierItemAdaptor::attentionIconPixmap() const {
+KDbusImageVector StatusNotifierItemAdaptor::overlayIconPixmap() {
     return {};
 }
 
-QString StatusNotifierItemAdaptor::attentionMovieName() const {
-    return QString();
+QString StatusNotifierItemAdaptor::attentionIconName() {
+    return {};
+}
+
+KDbusImageVector StatusNotifierItemAdaptor::attentionIconPixmap() {
+    return {};
+}
+
+QString StatusNotifierItemAdaptor::attentionMovieName() {
+    return {};
 }
 
 KDbusToolTipStruct StatusNotifierItemAdaptor::toolTip() const {
@@ -176,9 +178,7 @@ void StatusNotifierItemAdaptor::ContextMenu(int x, int y) {
 void StatusNotifierItemAdaptor::Activate(int x, int y) {
     Q_UNUSED(x);
     Q_UNUSED(y);
-    if (m_service->controller()) {
-        m_service->controller()->showWindow();
-    }
+    emit m_service->requestShowWindow();
 }
 
 void StatusNotifierItemAdaptor::SecondaryActivate(int x, int y) {
@@ -201,7 +201,7 @@ DBusMenuAdaptor::DBusMenuAdaptor(StatusNotifierService* parent)
     : QDBusAbstractAdaptor(parent)
     , m_service(parent) { }
 
-QString DBusMenuAdaptor::status() const {
+QString DBusMenuAdaptor::status() {
     return u"normal"_s;
 }
 
@@ -213,18 +213,18 @@ bool DBusMenuAdaptor::AboutToShow(int id) {
 void DBusMenuAdaptor::Event(int id, const QString& eventId, const QDBusVariant& data, uint timestamp) {
     Q_UNUSED(data);
     Q_UNUSED(timestamp);
-    if (eventId == u"clicked"_s && m_service->controller()) {
+    if (eventId == u"clicked"_s) {
         if (id == 1) {
-            m_service->controller()->showWindow();
+            emit m_service->requestShowWindow();
         } else if (id == 3) {
-            m_service->controller()->quitApp();
+            emit m_service->requestQuitApp();
         }
     }
 }
 
 QList<int> DBusMenuAdaptor::EventGroup(const QList<int>& ids, const QString& eventId, const QDBusVariant& data,
                                        uint timestamp) {
-    for (int id : ids) {
+    for (const int id : ids) {
         Event(id, eventId, data, timestamp);
     }
     return {};
@@ -239,26 +239,34 @@ bool DBusMenuAdaptor::AboutToShowGroup(const QList<int>& ids, QList<int>& update
 
 QDBusVariant DBusMenuAdaptor::GetProperty(int id, const QString& name) {
     if (id == 1) {
-        if (name == u"label"_s)
+        if (name == u"label"_s) {
             return QDBusVariant(u"Open QtScribe"_s);
-        if (name == u"enabled"_s)
+        }
+        if (name == u"enabled"_s) {
             return QDBusVariant(true);
-        if (name == u"visible"_s)
+        }
+        if (name == u"visible"_s) {
             return QDBusVariant(true);
+        }
     } else if (id == 2) {
-        if (name == u"type"_s)
+        if (name == u"type"_s) {
             return QDBusVariant(u"separator"_s);
-        if (name == u"visible"_s)
+        }
+        if (name == u"visible"_s) {
             return QDBusVariant(true);
+        }
     } else if (id == 3) {
-        if (name == u"label"_s)
+        if (name == u"label"_s) {
             return QDBusVariant(u"Quit"_s);
-        if (name == u"enabled"_s)
+        }
+        if (name == u"enabled"_s) {
             return QDBusVariant(true);
-        if (name == u"visible"_s)
+        }
+        if (name == u"visible"_s) {
             return QDBusVariant(true);
+        }
     }
-    return QDBusVariant();
+    return {};
 }
 
 uint DBusMenuAdaptor::GetLayout(int parentId, int recursionDepth, const QStringList& propertyNames,
@@ -302,7 +310,7 @@ DBusMenuItemList DBusMenuAdaptor::GetGroupProperties(const QList<int>& ids, cons
     Q_UNUSED(propertyNames);
     DBusMenuItemList list;
 
-    for (int id : ids) {
+    for (const int id : ids) {
         DBusMenuItem item;
         item.id = id;
         if (id == 1) {
@@ -324,8 +332,9 @@ DBusMenuItemList DBusMenuAdaptor::GetGroupProperties(const QList<int>& ids, cons
 
 void StatusNotifierService::registerMetaTypes() {
     static bool registered = false;
-    if (registered)
+    if (registered) {
         return;
+    }
     registered = true;
 
     qDBusRegisterMetaType<KDbusImageStruct>();
@@ -353,12 +362,13 @@ StatusNotifierService::~StatusNotifierService() {
     }
 }
 
-bool StatusNotifierService::registerController(DictationCoordinator* coordinator) {
+bool StatusNotifierService::registerController(DictationCoordinator* coordinator, SystemService* systemService) {
     if (!coordinator || !QDBusConnection::sessionBus().isConnected()) {
         return false;
     }
 
     m_coordinator = coordinator;
+    m_systemService = systemService;
     connect(m_coordinator, &DictationCoordinator::recordingChanged, this, &StatusNotifierService::onRecordingChanged);
 
     m_serviceName = QString(u"org.kde.StatusNotifierItem-%1-1"_s).arg(QCoreApplication::applicationPid());
@@ -403,7 +413,7 @@ void StatusNotifierService::registerWithWatcher() {
                            u"org.kde.StatusNotifierWatcher"_s, QDBusConnection::sessionBus());
 
     if (watcher.isValid()) {
-        QDBusMessage reply = watcher.call(u"RegisterStatusNotifierItem"_s, m_serviceName);
+        const QDBusMessage reply = watcher.call(u"RegisterStatusNotifierItem"_s, m_serviceName);
         if (reply.type() == QDBusMessage::ErrorMessage) {
             qCDebug(lcSpeech) << "StatusNotifierService: RegisterStatusNotifierItem returned:" << reply.errorMessage();
         } else {

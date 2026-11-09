@@ -24,8 +24,8 @@ bool setResult(AuthResult* outResult, AuthResult res) {
 } // namespace
 
 int ProcfsUtils::openProcExeFd(pid_t pid, struct stat* outStat, AuthResult* outResult) {
-    std::string procExe = "/proc/" + std::to_string(pid) + "/exe";
-    int fd = open(procExe.c_str(), O_PATH | O_CLOEXEC);
+    const std::string procExe = "/proc/" + std::to_string(pid) + "/exe";
+    const int fd = open(procExe.c_str(), O_PATH | O_CLOEXEC);
     if (fd < 0) {
         KEYINJECTORD_LOG_ERROR("Launcher authorization failed: open(%s) error: %s", procExe.c_str(),
                                std::strerror(errno));
@@ -48,7 +48,7 @@ int ProcfsUtils::openProcExeFd(pid_t pid, struct stat* outStat, AuthResult* outR
 }
 
 int ProcfsUtils::openSelfExeFd(struct stat* outStat, AuthResult* outResult) {
-    int fd = open("/proc/self/exe", O_PATH | O_CLOEXEC);
+    const int fd = open("/proc/self/exe", O_PATH | O_CLOEXEC);
     if (fd < 0) {
         KEYINJECTORD_LOG_ERROR("Launcher authorization failed: open('/proc/self/exe') error: %s", std::strerror(errno));
         setResult(outResult, AuthResult::SelfExeReadFailed);
@@ -70,9 +70,9 @@ int ProcfsUtils::openSelfExeFd(struct stat* outStat, AuthResult* outResult) {
 }
 
 bool ProcfsUtils::readProcExePath(pid_t pid, std::filesystem::path& outPath, AuthResult* outResult) {
-    std::string procExe = "/proc/" + std::to_string(pid) + "/exe";
+    const std::string procExe = "/proc/" + std::to_string(pid) + "/exe";
     char buf[PATH_MAX];
-    ssize_t len = readlink(procExe.c_str(), buf, sizeof(buf) - 1);
+    const ssize_t len = readlink(procExe.c_str(), buf, sizeof(buf) - 1);
     if (len <= 0) {
         KEYINJECTORD_LOG_ERROR("Launcher authorization failed: readlink(%s) error: %s", procExe.c_str(),
                                std::strerror(errno));
@@ -85,7 +85,7 @@ bool ProcfsUtils::readProcExePath(pid_t pid, std::filesystem::path& outPath, Aut
 
 bool ProcfsUtils::readSelfExePath(std::filesystem::path& outPath, AuthResult* outResult) {
     char buf[PATH_MAX];
-    ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
+    const ssize_t len = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
     if (len <= 0) {
         KEYINJECTORD_LOG_ERROR("Launcher authorization failed: readlink(/proc/self/exe) error: %s",
                                std::strerror(errno));

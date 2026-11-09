@@ -28,7 +28,7 @@ StyledCard {
                                                                                        Theme.cardBorder)
             border.width: isSelected ? 2 : 1
 
-            readonly property bool isSelected: DictationCoordinator.activeBackend === DictationCoordinator.Cloud
+            readonly property bool isSelected: DaemonClient.activeBackend === DaemonClient.Cloud
 
             Behavior on color {
                 ColorAnimation {
@@ -126,8 +126,8 @@ StyledCard {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    if (DictationCoordinator.activeBackend !== DictationCoordinator.Cloud) {
-                        DictationCoordinator.activeBackend = DictationCoordinator.Cloud;
+                    if (DaemonClient.activeBackend !== DaemonClient.Cloud) {
+                        DaemonClient.activeBackend = DaemonClient.Cloud;
                     }
                 }
             }
@@ -145,7 +145,7 @@ StyledCard {
                                                                                          Theme.cardBorder)
             border.width: isSelected ? 2 : 1
 
-            readonly property bool isSelected: DictationCoordinator.activeBackend === DictationCoordinator.WhisperCpp
+            readonly property bool isSelected: DaemonClient.activeBackend === DaemonClient.WhisperCpp
 
             Behavior on color {
                 ColorAnimation {
@@ -243,8 +243,8 @@ StyledCard {
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
                 onClicked: {
-                    if (DictationCoordinator.activeBackend !== DictationCoordinator.WhisperCpp) {
-                        DictationCoordinator.activeBackend = DictationCoordinator.WhisperCpp;
+                    if (DaemonClient.activeBackend !== DaemonClient.WhisperCpp) {
+                        DaemonClient.activeBackend = DaemonClient.WhisperCpp;
                     }
                 }
             }
@@ -260,7 +260,7 @@ StyledCard {
         Layout.fillWidth: true
         title: qsTr("Automatic Offline Fallback")
         description: qsTr("Automatically switch to local whisper.cpp model when internet connectivity is lost")
-        checked: DictationCoordinator.autoSwitchOffline
-        onToggled: DictationCoordinator.autoSwitchOffline = checked
+        checked: DaemonClient.autoSwitchOffline
+        onToggled: DaemonClient.autoSwitchOffline = checked
     }
 }

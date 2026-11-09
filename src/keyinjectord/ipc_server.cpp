@@ -4,6 +4,7 @@
 
 #include <array>
 #include <cerrno>
+#include <csignal>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -14,7 +15,6 @@
 #include <sys/signalfd.h>
 #include <sys/socket.h>
 #include <poll.h>
-#include <signal.h>
 #include <unistd.h>
 
 namespace keyinjectord {
@@ -63,7 +63,7 @@ IpcServer::~IpcServer() {
     KEYINJECTORD_LOG_INFO("IPC server shut down");
 }
 
-void IpcServer::stop() {
+void IpcServer::stop() const {
     if (m_stopEventFd >= 0) {
         uint64_t val = 1;
         [[maybe_unused]] auto w = write(m_stopEventFd, &val, sizeof(val));
@@ -78,10 +78,11 @@ void IpcServer::run() {
                      pollfd {.fd = m_stopEventFd, .events = POLLIN, .revents = 0},
                      pollfd {.fd = m_socketFd, .events = POLLIN | POLLHUP | POLLERR, .revents = 0}};
 
-        int ret = poll(m_pollFds.data(), m_pollFds.size(), -1);
+        const int ret = poll(m_pollFds.data(), m_pollFds.size(), -1);
         if (ret < 0) {
-            if (errno == EINTR)
+            if (errno == EINTR) {
                 continue;
+            }
             KEYINJECTORD_LOG_ERROR("poll() error: %s", std::strerror(errno));
             break;
         }
@@ -136,7 +137,7 @@ ResponseStatus IpcServer::handleOpcode(Opcode op) {
 bool IpcServer::handleClientRead() {
     std::array<uint8_t, kMaxBufferSize> buf {};
 
-    ssize_t n = read(m_socketFd, buf.data(), buf.size());
+    const ssize_t n = read(m_socketFd, buf.data(), buf.size());
     if (n <= 0) {
         if (n == 0) {
             KEYINJECTORD_LOG_INFO("Peer disconnected (EOF), shutting down daemon");
@@ -146,10 +147,10 @@ bool IpcServer::handleClientRead() {
         return false;
     }
 
-    for (uint8_t opcodeRaw : std::span(buf.data(), static_cast<size_t>(n))) {
-        ResponseStatus status = handleOpcode(static_cast<Opcode>(opcodeRaw));
+    for (const uint8_t opcodeRaw : std::span(buf.data(), static_cast<size_t>(n))) {
+        const ResponseStatus status = handleOpcode(static_cast<Opcode>(opcodeRaw));
 
-        uint8_t respByte = static_cast<uint8_t>(status);
+        const auto respByte = static_cast<uint8_t>(status);
         [[maybe_unused]] auto w = write(m_socketFd, &respByte, sizeof(respByte));
 
         if (status == ResponseStatus::UnknownCmd) {

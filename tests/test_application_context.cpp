@@ -1,6 +1,5 @@
 #include "AudioRecorder.h"
 #include "DaemonConnector.h"
-#include "DaemonDiagnosticModel.h"
 #include "DictationCoordinator.h"
 #include "GroqSttClient.h"
 #include "TextInjector.h"
@@ -16,8 +15,10 @@
 #include "DictationPadModel.h"
 #include "GeminiSttClient.h"
 #include "GlobalShortcutManager.h"
+#include "ModelService.h"
 #include "NotificationPresenter.h"
 #include "SystemHealthMonitor.h"
+#include "SystemService.h"
 #include "WhisperModelManager.h"
 #include "WhisperSttClient.h"
 
@@ -75,6 +76,8 @@ void TestApplicationContext::testHeadlessInitialization() {
     QVERIFY(context.shortcutManager() != nullptr);
     QVERIFY(context.textInjector() != nullptr);
     QVERIFY(context.daemonConnector() != nullptr);
+    QVERIFY(context.modelService() != nullptr);
+    QVERIFY(context.systemService() != nullptr);
 }
 
 void TestApplicationContext::testSubsystemWiringIntegrity() {
@@ -86,6 +89,10 @@ void TestApplicationContext::testSubsystemWiringIntegrity() {
     QCOMPARE(context.dictationCoordinator()->sttEngine(), context.compositeSttEngine());
     QCOMPARE(context.notificationPresenter()->dictationCoordinator(), context.dictationCoordinator());
     QCOMPARE(context.notificationPresenter()->compositeSttEngine(), context.compositeSttEngine());
+    QCOMPARE(context.modelService()->whisperClient(), context.whisperSttClient());
+    QCOMPARE(context.modelService()->modelManager(), context.whisperModelManager());
+    QCOMPARE(context.systemService()->shortcutManager(), context.shortcutManager());
+    QCOMPARE(context.systemService()->daemonConnector(), context.daemonConnector());
     QVERIFY(context.llmClient() != nullptr);
     QVERIFY(context.cloudSttRouter()->activeClient() != nullptr);
 }

@@ -3,9 +3,12 @@
 #include "AudioRecorder.h"
 #include "LoggingCategories.h"
 
+#include "common/SettingsKeys.h"
+#include "AbstractCloudSttClient.h"
+#include "AbstractOfflineSttClient.h"
+#include "SettingsManager.h"
 #include "SystemHealthMonitor.h"
 #include "WhisperModelManager.h"
-#include "WhisperSttClient.h"
 
 #include <QDebug>
 #include <QSettings>
@@ -14,14 +17,67 @@ using namespace Qt::StringLiterals;
 
 CompositeSttEngine::CompositeSttEngine(QObject* parent)
     : AbstractSttClient(parent) {
+    if (auto* inst = SettingsManager::instance()) {
+        setSettingsManager(inst);
+    } else {
+        loadSettings();
+    }
+}
+
+void CompositeSttEngine::setSettingsManager(SettingsManager* settings) {
+    if (m_settingsManager == settings) {
+        return;
+    }
+    if (m_settingsManager) {
+        disconnect(m_settingsManager, nullptr, this, nullptr);
+    }
+    m_settingsManager = settings;
+    if (m_settingsManager) {
+        connect(m_settingsManager, &SettingsManager::speechConfigChanged, this,
+                [this](const SettingsManager::SpeechConfig& config) {
+                    const auto targetBackend = (config.backend == SettingsManager::TranscriptionBackend::WhisperCpp)
+                                                   ? TranscriptionBackend::WhisperCpp
+                                                   : TranscriptionBackend::Cloud;
+                    if (!m_autoSwitchedToOffline || targetBackend == TranscriptionBackend::WhisperCpp) {
+                        setActiveBackend(targetBackend, false);
+                    }
+
+                    if (m_autoSwitchOffline != config.autoSwitchOffline) {
+                        m_autoSwitchOffline = config.autoSwitchOffline;
+                        emit autoSwitchOfflineChanged();
+                        if (!m_autoSwitchOffline && m_autoSwitchedToOffline && !isBusy()) {
+                            restoreOnlineBackend();
+                        }
+                    }
+                });
+    }
     loadSettings();
 }
 
+SettingsManager* CompositeSttEngine::settingsManager() const noexcept {
+    return m_settingsManager;
+}
+
 void CompositeSttEngine::loadSettings() {
-    QSettings settings;
-    const QString backendStr = settings.value(u"Speech/Backend"_s, u"Cloud"_s).toString();
-    const auto targetBackend =
-        (backendStr == u"WhisperCpp"_s) ? TranscriptionBackend::WhisperCpp : TranscriptionBackend::Cloud;
+    int backendInt = 0;
+    bool autoSwitch = true;
+
+    if (m_settingsManager) {
+        const auto config = m_settingsManager->speechConfig();
+        backendInt = (config.backend == SettingsManager::TranscriptionBackend::WhisperCpp) ? 1 : 0;
+        autoSwitch = config.autoSwitchOffline;
+    } else {
+        const QSettings settings;
+        backendInt = settings.value(SettingsKeys::kSpeechTranscriptionBackend.toString(), 0).toInt();
+        const QString backendStr = settings.value(SettingsKeys::kSpeechBackend.toString(), QString()).toString();
+        if (!backendStr.isEmpty()) {
+            backendInt = (backendStr == u"WhisperCpp"_s) ? 1 : 0;
+        }
+        autoSwitch = settings.value(SettingsKeys::kSpeechAutoSwitchOffline.toString(), true).toBool();
+    }
+
+    const auto targetBackend = (backendInt == 1) ? TranscriptionBackend::WhisperCpp : TranscriptionBackend::Cloud;
+
     if (!m_autoSwitchedToOffline || targetBackend == TranscriptionBackend::WhisperCpp) {
         if (m_activeBackend != targetBackend) {
             m_activeBackend = targetBackend;
@@ -29,7 +85,6 @@ void CompositeSttEngine::loadSettings() {
         }
     }
 
-    const bool autoSwitch = settings.value(u"Speech/AutoSwitchOffline"_s, true).toBool();
     if (m_autoSwitchOffline != autoSwitch) {
         m_autoSwitchOffline = autoSwitch;
         emit autoSwitchOfflineChanged();
@@ -39,13 +94,11 @@ void CompositeSttEngine::loadSettings() {
     }
 
     if (m_whisperClient) {
-        if (auto* whisper = qobject_cast<WhisperSttClient*>(m_whisperClient.data())) {
-            whisper->loadSettings();
-        }
+        m_whisperClient->loadSettings();
     }
 }
 
-void CompositeSttEngine::setCloudClient(AbstractSttClient* client) {
+void CompositeSttEngine::setCloudClient(AbstractCloudSttClient* client) {
     if (m_cloudClient == client) {
         return;
     }
@@ -56,15 +109,6 @@ void CompositeSttEngine::setCloudClient(AbstractSttClient* client) {
         disconnect(m_cloudClient, &AbstractSttClient::errorOccurred, this, &CompositeSttEngine::onActiveClientError);
         disconnect(m_cloudClient, &AbstractSttClient::busyChanged, this, &AbstractSttClient::busyChanged);
         disconnect(m_cloudClient, &AbstractSttClient::readyChanged, this, &AbstractSttClient::readyChanged);
-        disconnect(m_cloudClient, &AbstractSttClient::apiKeySetChanged, this, &AbstractSttClient::apiKeySetChanged);
-        disconnect(m_cloudClient, &AbstractSttClient::isApiKeyInvalidChanged, this,
-                   &AbstractSttClient::isApiKeyInvalidChanged);
-        disconnect(m_cloudClient, &AbstractSttClient::isRateLimitedChanged, this,
-                   &AbstractSttClient::isRateLimitedChanged);
-        disconnect(m_cloudClient, &AbstractSttClient::retrySecondsRemainingChanged, this,
-                   &AbstractSttClient::retrySecondsRemainingChanged);
-        disconnect(m_cloudClient, &AbstractSttClient::errorCategoryChanged, this,
-                   &AbstractSttClient::errorCategoryChanged);
     }
 
     m_cloudClient = client;
@@ -75,29 +119,21 @@ void CompositeSttEngine::setCloudClient(AbstractSttClient* client) {
         connect(m_cloudClient, &AbstractSttClient::errorOccurred, this, &CompositeSttEngine::onActiveClientError);
         connect(m_cloudClient, &AbstractSttClient::busyChanged, this, &AbstractSttClient::busyChanged);
         connect(m_cloudClient, &AbstractSttClient::readyChanged, this, &AbstractSttClient::readyChanged);
-        connect(m_cloudClient, &AbstractSttClient::apiKeySetChanged, this, &AbstractSttClient::apiKeySetChanged);
-        connect(m_cloudClient, &AbstractSttClient::isApiKeyInvalidChanged, this,
-                &AbstractSttClient::isApiKeyInvalidChanged);
-        connect(m_cloudClient, &AbstractSttClient::isRateLimitedChanged, this,
-                &AbstractSttClient::isRateLimitedChanged);
-        connect(m_cloudClient, &AbstractSttClient::retrySecondsRemainingChanged, this,
-                &AbstractSttClient::retrySecondsRemainingChanged);
-        connect(m_cloudClient, &AbstractSttClient::errorCategoryChanged, this,
-                &AbstractSttClient::errorCategoryChanged);
 
         if (m_active && m_activeBackend == TranscriptionBackend::Cloud) {
             m_cloudClient->activate();
         }
     }
 
+    emit cloudClientChanged(m_cloudClient);
     emit readyChanged();
 }
 
-AbstractSttClient* CompositeSttEngine::cloudClient() const noexcept {
+AbstractCloudSttClient* CompositeSttEngine::cloudClient() const noexcept {
     return m_cloudClient;
 }
 
-void CompositeSttEngine::setWhisperClient(AbstractSttClient* client) {
+void CompositeSttEngine::setWhisperClient(AbstractOfflineSttClient* client) {
     if (m_whisperClient == client) {
         return;
     }
@@ -108,13 +144,12 @@ void CompositeSttEngine::setWhisperClient(AbstractSttClient* client) {
         disconnect(m_whisperClient, &AbstractSttClient::errorOccurred, this, &CompositeSttEngine::onActiveClientError);
         disconnect(m_whisperClient, &AbstractSttClient::busyChanged, this, &AbstractSttClient::busyChanged);
         disconnect(m_whisperClient, &AbstractSttClient::readyChanged, this, &AbstractSttClient::readyChanged);
-        if (auto* whisper = qobject_cast<WhisperSttClient*>(m_whisperClient.data())) {
-            disconnect(whisper, &WhisperSttClient::modelLoadFailed, this,
-                       &CompositeSttEngine::onWhisperModelLoadFailed);
-            disconnect(whisper, &WhisperSttClient::modelStatusChanged, this, &CompositeSttEngine::modelStatusChanged);
-            disconnect(whisper, &WhisperSttClient::computeDeviceChanged, this,
-                       &CompositeSttEngine::computeDeviceChanged);
-        }
+        disconnect(m_whisperClient, &AbstractOfflineSttClient::modelLoadFailed, this,
+                   &CompositeSttEngine::onWhisperModelLoadFailed);
+        disconnect(m_whisperClient, &AbstractOfflineSttClient::modelStatusChanged, this,
+                   &CompositeSttEngine::modelStatusChanged);
+        disconnect(m_whisperClient, &AbstractOfflineSttClient::computeDeviceChanged, this,
+                   &CompositeSttEngine::computeDeviceChanged);
     }
 
     m_whisperClient = client;
@@ -125,11 +160,12 @@ void CompositeSttEngine::setWhisperClient(AbstractSttClient* client) {
         connect(m_whisperClient, &AbstractSttClient::errorOccurred, this, &CompositeSttEngine::onActiveClientError);
         connect(m_whisperClient, &AbstractSttClient::busyChanged, this, &AbstractSttClient::busyChanged);
         connect(m_whisperClient, &AbstractSttClient::readyChanged, this, &AbstractSttClient::readyChanged);
-        if (auto* whisper = qobject_cast<WhisperSttClient*>(m_whisperClient.data())) {
-            connect(whisper, &WhisperSttClient::modelLoadFailed, this, &CompositeSttEngine::onWhisperModelLoadFailed);
-            connect(whisper, &WhisperSttClient::modelStatusChanged, this, &CompositeSttEngine::modelStatusChanged);
-            connect(whisper, &WhisperSttClient::computeDeviceChanged, this, &CompositeSttEngine::computeDeviceChanged);
-        }
+        connect(m_whisperClient, &AbstractOfflineSttClient::modelLoadFailed, this,
+                &CompositeSttEngine::onWhisperModelLoadFailed);
+        connect(m_whisperClient, &AbstractOfflineSttClient::modelStatusChanged, this,
+                &CompositeSttEngine::modelStatusChanged);
+        connect(m_whisperClient, &AbstractOfflineSttClient::computeDeviceChanged, this,
+                &CompositeSttEngine::computeDeviceChanged);
 
         if (m_active && m_activeBackend == TranscriptionBackend::WhisperCpp) {
             m_whisperClient->activate();
@@ -139,7 +175,7 @@ void CompositeSttEngine::setWhisperClient(AbstractSttClient* client) {
     emit readyChanged();
 }
 
-AbstractSttClient* CompositeSttEngine::whisperClient() const noexcept {
+AbstractOfflineSttClient* CompositeSttEngine::whisperClient() const noexcept {
     return m_whisperClient;
 }
 
@@ -191,7 +227,6 @@ void CompositeSttEngine::setAudioRecorder(AudioRecorder* recorder) {
                 &CompositeSttEngine::checkPendingOfflineOrOnlineSwitch);
         connect(m_recorder, &AudioRecorder::recordingChanged, this, &AbstractSttClient::busyChanged);
     }
-    emit busyChanged();
 }
 
 AudioRecorder* CompositeSttEngine::audioRecorder() const noexcept {
@@ -204,10 +239,29 @@ CompositeSttEngine::TranscriptionBackend CompositeSttEngine::activeBackend() con
 
 void CompositeSttEngine::setActiveBackend(TranscriptionBackend backend, bool persistSettings) {
     if (m_activeBackend == backend) {
+        if (persistSettings) {
+            if (m_settingsManager) {
+                m_settingsManager->setBackend(m_activeBackend == TranscriptionBackend::WhisperCpp
+                                                  ? SettingsManager::TranscriptionBackend::WhisperCpp
+                                                  : SettingsManager::TranscriptionBackend::Cloud);
+            } else {
+                QSettings settings;
+                settings.setValue(SettingsKeys::kSpeechTranscriptionBackend.toString(), static_cast<int>(backend));
+                settings.setValue(SettingsKeys::kSpeechBackend.toString(),
+                                  m_activeBackend == TranscriptionBackend::WhisperCpp ? u"WhisperCpp"_s : u"Cloud"_s);
+            }
+            if (m_autoSwitchedToOffline || m_pendingOfflineSwitch) {
+                m_autoSwitchedToOffline = false;
+                m_pendingOfflineSwitch = false;
+                emit autoSwitchedToOfflineChanged();
+            }
+        }
+
         if (m_active && m_activeBackend == TranscriptionBackend::WhisperCpp) {
-            if (auto* whisper = qobject_cast<WhisperSttClient*>(m_whisperClient.data())) {
-                if (!whisper->isModelLoaded() && whisper->isModelInstalled() && !whisper->isExplicitlyUnloaded()) {
-                    whisper->activate();
+            if (m_whisperClient) {
+                if (!m_whisperClient->isModelLoaded() && m_whisperClient->isModelInstalled() &&
+                    !m_whisperClient->isExplicitlyUnloaded()) {
+                    m_whisperClient->activate();
                 }
             }
         }
@@ -225,10 +279,16 @@ void CompositeSttEngine::setActiveBackend(TranscriptionBackend backend, bool per
     m_activeBackend = backend;
 
     if (persistSettings) {
-        QSettings settings;
-        settings.setValue(u"Speech/TranscriptionBackend"_s, static_cast<int>(backend));
-        settings.setValue(u"Speech/Backend"_s,
-                          m_activeBackend == TranscriptionBackend::WhisperCpp ? u"WhisperCpp"_s : u"Cloud"_s);
+        if (m_settingsManager) {
+            m_settingsManager->setBackend(m_activeBackend == TranscriptionBackend::WhisperCpp
+                                              ? SettingsManager::TranscriptionBackend::WhisperCpp
+                                              : SettingsManager::TranscriptionBackend::Cloud);
+        } else {
+            QSettings settings;
+            settings.setValue(SettingsKeys::kSpeechTranscriptionBackend.toString(), static_cast<int>(backend));
+            settings.setValue(SettingsKeys::kSpeechBackend.toString(),
+                              m_activeBackend == TranscriptionBackend::WhisperCpp ? u"WhisperCpp"_s : u"Cloud"_s);
+        }
         m_autoSwitchedToOffline = false;
         m_pendingOfflineSwitch = false;
         emit autoSwitchedToOfflineChanged();
@@ -243,11 +303,6 @@ void CompositeSttEngine::setActiveBackend(TranscriptionBackend backend, bool per
     emit activeBackendChanged();
     emit readyChanged();
     emit busyChanged();
-    emit apiKeySetChanged();
-    emit isApiKeyInvalidChanged();
-    emit isRateLimitedChanged();
-    emit retrySecondsRemainingChanged();
-    emit errorCategoryChanged();
 }
 
 bool CompositeSttEngine::autoSwitchOffline() const {
@@ -260,12 +315,19 @@ void CompositeSttEngine::setAutoSwitchOffline(bool enable) {
     }
 
     m_autoSwitchOffline = enable;
-    QSettings settings;
-    settings.setValue(u"Speech/AutoSwitchOffline"_s, enable);
+    if (m_settingsManager) {
+        m_settingsManager->setAutoSwitchOffline(enable);
+    } else {
+        QSettings settings;
+        settings.setValue(SettingsKeys::kSpeechAutoSwitchOffline.toString(), enable);
+    }
     emit autoSwitchOfflineChanged();
 
-    if (!m_autoSwitchOffline && m_autoSwitchedToOffline && !isBusy()) {
-        restoreOnlineBackend();
+    if (!m_autoSwitchOffline) {
+        m_pendingOfflineSwitch = false;
+        if (m_autoSwitchedToOffline && !isBusy()) {
+            restoreOnlineBackend();
+        }
     }
 }
 
@@ -274,31 +336,28 @@ bool CompositeSttEngine::isAutoSwitchedToOffline() const {
 }
 
 AbstractSttClient* CompositeSttEngine::activeSttClient() const {
-    if (m_activeBackend == TranscriptionBackend::Cloud) {
-        return m_cloudClient;
+    if (m_activeBackend == TranscriptionBackend::WhisperCpp) {
+        return m_whisperClient;
     }
-    return m_whisperClient;
+    return m_cloudClient;
 }
 
 void CompositeSttEngine::transcribe(const QByteArray& wavData) {
     m_lastWavData = wavData;
+    auto* client = activeSttClient();
+    if (!client) {
+        setLastError(u"No active STT client available"_s);
+        emit errorOccurred(lastError());
+        return;
+    }
+
     m_isBusy = true;
     emit busyChanged();
 
-    auto* client = activeSttClient();
-    if (client) {
-        client->transcribe(wavData);
-    } else {
-        m_isBusy = false;
-        emit busyChanged();
-        const QString errMsg = tr("Speech-to-text service is unavailable");
-        setLastError(errMsg);
-        emit errorOccurred(errMsg);
-    }
+    client->transcribe(wavData);
 }
 
 void CompositeSttEngine::cancel() {
-    m_lastWavData.clear();
     if (auto* client = activeSttClient()) {
         client->cancel();
     }
@@ -310,31 +369,32 @@ void CompositeSttEngine::cancel() {
 }
 
 void CompositeSttEngine::retryLast() {
-    if (m_lastWavData.isEmpty()) {
-        return;
+    if (!m_lastWavData.isEmpty()) {
+        transcribe(m_lastWavData);
+    } else if (auto* client = activeSttClient()) {
+        client->retryLast();
     }
-    transcribe(m_lastWavData);
 }
 
 bool CompositeSttEngine::isReady() const {
     auto* client = activeSttClient();
-    return client ? client->isReady() : false;
+    return client && client->isReady();
 }
 
 bool CompositeSttEngine::isBusy() const {
-    if (m_isBusy) {
-        return true;
-    }
     if (m_recorder && m_recorder->recording()) {
         return true;
     }
+    if (m_isBusy) {
+        return true;
+    }
     auto* client = activeSttClient();
-    return client ? client->isBusy() : false;
+    return client && client->isBusy();
 }
 
 bool CompositeSttEngine::handlesSmartFormatting() const {
     auto* client = activeSttClient();
-    return client ? client->handlesSmartFormatting() : false;
+    return client && client->handlesSmartFormatting();
 }
 
 QString CompositeSttEngine::lastError() const {
@@ -357,31 +417,6 @@ void CompositeSttEngine::deactivate() {
     if (auto* client = activeSttClient()) {
         client->deactivate();
     }
-}
-
-bool CompositeSttEngine::isApiKeySet() const {
-    auto* client = activeSttClient();
-    return client ? client->isApiKeySet() : false;
-}
-
-bool CompositeSttEngine::isApiKeyInvalid() const {
-    auto* client = activeSttClient();
-    return client ? client->isApiKeyInvalid() : false;
-}
-
-bool CompositeSttEngine::isRateLimited() const {
-    auto* client = activeSttClient();
-    return client ? client->isRateLimited() : false;
-}
-
-int CompositeSttEngine::retrySecondsRemaining() const {
-    auto* client = activeSttClient();
-    return client ? client->retrySecondsRemaining() : 0;
-}
-
-AbstractSttClient::ErrorCategory CompositeSttEngine::errorCategory() const {
-    auto* client = activeSttClient();
-    return client ? client->errorCategory() : ErrorCategory::None;
 }
 
 void CompositeSttEngine::onActiveClientTranscriptionReady(const QString& text) {
@@ -442,46 +477,42 @@ void CompositeSttEngine::onNetworkOnlineChanged(bool online) {
 }
 
 void CompositeSttEngine::checkPendingOfflineOrOnlineSwitch() {
-    if (!m_autoSwitchOffline) {
-        m_pendingOfflineSwitch = false;
-        return;
-    }
-
     if (isBusy()) {
         return;
     }
 
-    const bool isOnline = m_healthMonitor ? m_healthMonitor->isNetworkOnline() : true;
-
     if (m_pendingOfflineSwitch) {
         m_pendingOfflineSwitch = false;
-        if (!isOnline && m_activeBackend == TranscriptionBackend::Cloud) {
+        const bool networkOnline = m_healthMonitor ? m_healthMonitor->isNetworkOnline() : true;
+        if (m_autoSwitchOffline && !networkOnline && m_activeBackend == TranscriptionBackend::Cloud) {
             applyOfflineSwitch();
             return;
         }
     }
 
-    if (m_autoSwitchedToOffline && isOnline) {
+    if (m_autoSwitchedToOffline && m_healthMonitor && m_healthMonitor->isNetworkOnline()) {
         restoreOnlineBackend();
     }
 }
 
 void CompositeSttEngine::applyOfflineSwitch() {
     if (!isOfflineModelAvailable()) {
+        qCWarning(lcSpeech)
+            << "CompositeSttEngine: Automatic switch to offline requested, but no Whisper model is available";
         emit offlineModelRequired();
         return;
     }
 
     qCInfo(lcSpeech) << "CompositeSttEngine: Offline model verified. Switching active backend to WhisperCpp";
-    setActiveBackend(TranscriptionBackend::WhisperCpp, /*persistSettings=*/false);
     m_autoSwitchedToOffline = true;
     emit autoSwitchedToOfflineChanged();
+    setActiveBackend(TranscriptionBackend::WhisperCpp, false);
     emit failoverTriggered();
 }
 
 void CompositeSttEngine::restoreOnlineBackend() {
     qCInfo(lcSpeech) << "CompositeSttEngine: Restoring active backend back to Cloud";
-    setActiveBackend(TranscriptionBackend::Cloud, /*persistSettings=*/false);
+    setActiveBackend(TranscriptionBackend::Cloud, false);
     m_autoSwitchedToOffline = false;
     emit autoSwitchedToOfflineChanged();
     emit onlineRestored();
@@ -498,12 +529,8 @@ bool CompositeSttEngine::isOfflineModelAvailable() const {
         return m_modelManager->isSelectedModelInstalled();
     }
 
-    if (auto* whisper = qobject_cast<WhisperSttClient*>(m_whisperClient.data())) {
-        return whisper->isModelInstalled();
-    }
-
     if (m_whisperClient) {
-        return true;
+        return m_whisperClient->isModelInstalled();
     }
 
     return false;
@@ -517,19 +544,19 @@ void CompositeSttEngine::setLastError(const QString& error) {
 }
 
 void CompositeSttEngine::loadModel(const QString& customPath) {
-    if (auto* whisper = qobject_cast<WhisperSttClient*>(m_whisperClient.data())) {
-        whisper->loadModel(customPath);
+    if (m_whisperClient) {
+        m_whisperClient->loadModel(customPath);
     }
 }
 
 void CompositeSttEngine::unloadModel() {
-    if (auto* whisper = qobject_cast<WhisperSttClient*>(m_whisperClient.data())) {
-        whisper->unloadModel();
+    if (m_whisperClient) {
+        m_whisperClient->unloadModel();
     }
 }
 
 void CompositeSttEngine::checkModelStatus() {
-    if (auto* whisper = qobject_cast<WhisperSttClient*>(m_whisperClient.data())) {
-        whisper->checkModelStatus();
+    if (m_whisperClient) {
+        m_whisperClient->checkModelStatus();
     }
 }

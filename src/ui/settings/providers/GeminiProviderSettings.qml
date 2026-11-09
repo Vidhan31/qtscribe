@@ -42,14 +42,14 @@ Item {
             title: qsTr("Gemini API Key")
             description: qsTr("Required for Gemini speech recognition (Free tier available at Google AI Studio)")
             rowDescription: qsTr("Enter your Google Gemini API key")
-            apiKey: GeminiSttClient.apiKey
+            apiKey: AppSettings.geminiApiKey
             placeholderText: qsTr("AIzaSy...")
             helpText: qsTr(
                           "API keys available from Google AI Studio at aistudio.google.com. Stored securely in system keychain (with configuration fallback).")
             linkButtonText: qsTr("Get API Key")
             linkUrl: "https://aistudio.google.com/app/apikey"
             onSaveRequested: key => {
-                GeminiSttClient.apiKey = key;
+                AppSettings.geminiApiKey = key;
             }
         }
 
@@ -69,12 +69,12 @@ Item {
                     valueRole: "code"
                     model: geminiModelsModel
                     currentIndex: {
-                        const idx = indexOfValue(GeminiSttClient.selectedModel);
+                        const idx = indexOfValue(AppSettings.geminiModel);
                         return idx >= 0 ? idx : 0;
                     }
 
                     onActivated: index => {
-                        GeminiSttClient.selectedModel = currentValue;
+                        AppSettings.geminiModel = currentValue;
                     }
                 }
             }
@@ -94,12 +94,12 @@ Item {
                     valueRole: "code"
                     model: transcriptionModesModel
                     currentIndex: {
-                        const idx = indexOfValue(GeminiSttClient.mode);
+                        const idx = indexOfValue(AppSettings.geminiMode);
                         return idx >= 0 ? idx : 0;
                     }
 
                     onActivated: index => {
-                        GeminiSttClient.mode = currentValue;
+                        AppSettings.geminiMode = currentValue;
                     }
                 }
             }
@@ -111,13 +111,13 @@ Item {
             fieldLabel: qsTr("Custom Vocabulary")
             placeholderText: qsTr(
                                  "Comma-separated or newline-separated terms, e.g. QtScribe, Wayland, Qt6, CMake, Kubernetes, Gemini...")
-            vocabulary: GeminiSttClient.customVocabulary
+            vocabulary: AppSettings.geminiCustomVocabulary
             maxCharacters: 0
             onVocabularySaved: text => {
-                GeminiSttClient.customVocabulary = text;
+                AppSettings.geminiCustomVocabulary = text;
             }
             onVocabularyCleared: {
-                GeminiSttClient.customVocabulary = "";
+                AppSettings.geminiCustomVocabulary = "";
             }
         }
     }

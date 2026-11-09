@@ -103,7 +103,7 @@ void AudioRecorder::startRecording() {
         return;
     }
 
-    QAudioDevice inputDevice = QMediaDevices::defaultAudioInput();
+    const QAudioDevice inputDevice = QMediaDevices::defaultAudioInput();
     if (inputDevice.isNull()) {
         qWarning() << "AudioRecorder: No default audio input device found";
         m_hasAudioInputDevice = false;
@@ -187,7 +187,7 @@ void AudioRecorder::stopRecording() {
     qCDebug(lcAudio) << "Stopping audio recording...";
 
     if (m_ioDevice) {
-        QByteArray remaining = m_ioDevice->readAll();
+        const QByteArray remaining = m_ioDevice->readAll();
         if (!remaining.isEmpty()) {
             m_pcmData.append(remaining);
         }
@@ -210,7 +210,7 @@ void AudioRecorder::stopRecording() {
         return;
     }
 
-    QByteArray wavData = buildWavFile(m_pcmData);
+    const QByteArray wavData = buildWavFile(m_pcmData);
 
     const qreal durationSecs = static_cast<qreal>(m_pcmData.size()) /
                                (m_format.sampleRate() * m_format.channelCount() * m_format.bytesPerSample());
@@ -256,7 +256,7 @@ void AudioRecorder::onReadyRead() {
         return;
     }
 
-    QByteArray chunk = m_ioDevice->readAll();
+    const QByteArray chunk = m_ioDevice->readAll();
     if (chunk.isEmpty()) {
         return;
     }
@@ -270,15 +270,15 @@ void AudioRecorder::onReadyRead() {
     if (sampleFormat == QAudioFormat::Float) {
         const auto samples = std::span(reinterpret_cast<const float*>(chunk.constData()), chunk.size() / sizeof(float));
         sampleCount = static_cast<qsizetype>(samples.size());
-        for (float s : samples) {
-            const double val = static_cast<double>(s);
+        for (const float s : samples) {
+            const auto val = static_cast<double>(s);
             sumSquares += val * val;
         }
     } else if (sampleFormat == QAudioFormat::Int32) {
         const auto samples =
             std::span(reinterpret_cast<const qint32*>(chunk.constData()), chunk.size() / sizeof(qint32));
         sampleCount = static_cast<qsizetype>(samples.size());
-        for (qint32 s : samples) {
+        for (const qint32 s : samples) {
             const double val = static_cast<double>(s) / 2147483647.0;
             sumSquares += val * val;
         }
@@ -286,7 +286,7 @@ void AudioRecorder::onReadyRead() {
         const auto samples =
             std::span(reinterpret_cast<const quint8*>(chunk.constData()), chunk.size() / sizeof(quint8));
         sampleCount = static_cast<qsizetype>(samples.size());
-        for (quint8 s : samples) {
+        for (const quint8 s : samples) {
             const double val = (static_cast<double>(s) - 128.0) / 128.0;
             sumSquares += val * val;
         }
@@ -294,7 +294,7 @@ void AudioRecorder::onReadyRead() {
         const auto samples =
             std::span(reinterpret_cast<const qint16*>(chunk.constData()), chunk.size() / sizeof(qint16));
         sampleCount = static_cast<qsizetype>(samples.size());
-        for (qint16 s : samples) {
+        for (const qint16 s : samples) {
             const double val = static_cast<double>(s) / 32767.0;
             sumSquares += val * val;
         }
@@ -309,12 +309,12 @@ void AudioRecorder::onReadyRead() {
 }
 
 QByteArray AudioRecorder::buildWavFile(const QByteArray& pcmData) const {
-    const quint32 dataSize = static_cast<quint32>(pcmData.size());
+    const auto dataSize = static_cast<quint32>(pcmData.size());
     const quint32 fileSize = 36 + dataSize;
     const quint16 audioFormat = (m_format.sampleFormat() == QAudioFormat::Float) ? 3 : 1;
-    const quint16 numChannels = static_cast<quint16>(m_format.channelCount());
-    const quint32 sampleRate = static_cast<quint32>(m_format.sampleRate());
-    const quint16 bitsPerSample = static_cast<quint16>(m_format.bytesPerSample() * 8);
+    const auto numChannels = static_cast<quint16>(m_format.channelCount());
+    const auto sampleRate = static_cast<quint32>(m_format.sampleRate());
+    const auto bitsPerSample = static_cast<quint16>(m_format.bytesPerSample() * 8);
     const quint16 blockAlign = numChannels * (bitsPerSample / 8);
     const quint32 byteRate = sampleRate * blockAlign;
 

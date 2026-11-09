@@ -60,7 +60,7 @@ protected:
     void setStatusMessage(const QString& msg);
 
 private:
-    void registerHostApp();
+    static void registerHostApp();
     void createSession();
     void bindShortcuts();
 

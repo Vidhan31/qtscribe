@@ -19,6 +19,15 @@
             "cacheVariables": {
                 "CMAKE_BUILD_TYPE": "Release"
             }
+        },
+        {
+            "name": "keyinjectord-relwithdebinfo",
+            "displayName": "keyinjectord RelWithDebInfo",
+            "generator": "Ninja",
+            "binaryDir": "${fileDir}/../../build-keyinjectord-relwithdebinfo",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
         }
     ],
     "buildPresets": [
@@ -29,6 +38,10 @@
         {
             "name": "build-keyinjectord-release",
             "configurePreset": "keyinjectord-release"
+        },
+        {
+            "name": "build-keyinjectord-relwithdebinfo",
+            "configurePreset": "keyinjectord-relwithdebinfo"
         }
     ]
 }

@@ -16,23 +16,3 @@ QString AbstractSttClient::lastError() const {
 bool AbstractSttClient::handlesSmartFormatting() const {
     return false;
 }
-
-bool AbstractSttClient::isApiKeySet() const {
-    return true;
-}
-
-bool AbstractSttClient::isApiKeyInvalid() const {
-    return false;
-}
-
-bool AbstractSttClient::isRateLimited() const {
-    return false;
-}
-
-int AbstractSttClient::retrySecondsRemaining() const {
-    return 0;
-}
-
-AbstractSttClient::ErrorCategory AbstractSttClient::errorCategory() const {
-    return ErrorCategory::None;
-}

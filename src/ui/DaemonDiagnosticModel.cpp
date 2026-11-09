@@ -1,9 +1,8 @@
 #include "DaemonDiagnosticModel.h"
 
-#include "AbstractTextInjector.h"
-#include "DaemonConnector.h"
-
+#include "common/SettingsKeys.h"
 #include "DaemonClient.h"
+#include "SettingsClient.h"
 
 #include <QDebug>
 #include <QProcessEnvironment>
@@ -21,126 +20,68 @@ using namespace Qt::StringLiterals;
 
 DaemonDiagnosticModel::DaemonDiagnosticModel(QObject* parent)
     : QObject(parent) {
-    QSettings settings;
-    m_preventClipboardHistory = settings.value(u"Clipboard/PreventHistory"_s, true).toBool();
-    m_injectionDelay = settings.value(u"Typing/PreInjectionDelayMs"_s, 200).toInt();
+    if (auto* sc = SettingsClient::instance()) {
+        m_preventClipboardHistory = sc->getSetting(SettingsKeys::kClipboardPreventHistory.toString(), true).toBool();
+        m_injectionDelay = sc->getSetting(SettingsKeys::kTypingPreInjectionDelayMs.toString(), 200).toInt();
 
-    if (auto* client = DaemonClient::instance()) {
-        connect(client, &DaemonClient::directTypingStatusChanged, this, [this]() {
-            if (!m_connector) {
-                emit connectedChanged();
-                emit hasFatalErrorChanged();
-                emit fatalErrorMessageChanged();
-                emit statusMessageChanged();
+        connect(sc, &SettingsClient::settingChanged, this, [this](const QString& key, const QVariant& value) {
+            if (key == SettingsKeys::kClipboardPreventHistory) {
+                const bool prevent = value.toBool();
+                if (m_preventClipboardHistory != prevent) {
+                    m_preventClipboardHistory = prevent;
+                    emit preventClipboardHistoryChanged();
+                }
+            } else if (key == SettingsKeys::kTypingPreInjectionDelayMs) {
+                const int delay = value.toInt();
+                if (m_injectionDelay != delay) {
+                    m_injectionDelay = delay;
+                    emit injectionDelayChanged();
+                }
             }
         });
     }
-}
 
-void DaemonDiagnosticModel::setDaemonConnector(DaemonConnector* connector) {
-    if (m_connector == connector) {
-        return;
-    }
-
-    if (m_connector) {
-        disconnect(m_connector, &DaemonConnector::connectedChanged, this, &DaemonDiagnosticModel::connectedChanged);
-        disconnect(m_connector, &DaemonConnector::hasFatalErrorChanged, this,
-                   &DaemonDiagnosticModel::hasFatalErrorChanged);
-        disconnect(m_connector, &DaemonConnector::fatalErrorMessageChanged, this,
-                   &DaemonDiagnosticModel::fatalErrorMessageChanged);
-        disconnect(m_connector, &DaemonConnector::lastErrorChanged, this, nullptr);
-        disconnect(m_connector, &DaemonConnector::statusMessageChanged, this, nullptr);
-    }
-
-    m_connector = connector;
-
-    if (m_connector) {
-        connect(m_connector, &DaemonConnector::connectedChanged, this, &DaemonDiagnosticModel::connectedChanged);
-        connect(m_connector, &DaemonConnector::hasFatalErrorChanged, this,
-                &DaemonDiagnosticModel::hasFatalErrorChanged);
-        connect(m_connector, &DaemonConnector::fatalErrorMessageChanged, this,
-                &DaemonDiagnosticModel::fatalErrorMessageChanged);
-        connect(m_connector, &DaemonConnector::lastErrorChanged, this, [this]() {
-            m_lastError = m_connector->lastError();
+    if (auto* client = DaemonClient::instance()) {
+        connect(client, &DaemonClient::textInjectionStatusChanged, this, [this]() {
+            emit connectedChanged();
+            emit hasFatalErrorChanged();
+            emit fatalErrorMessageChanged();
+            emit statusMessageChanged();
             emit lastErrorChanged();
         });
-        connect(m_connector, &DaemonConnector::statusMessageChanged, this, [this]() {
-            m_statusMessage = m_connector->statusMessage();
-            emit statusMessageChanged();
-        });
     }
-
-    emit connectedChanged();
-    emit hasFatalErrorChanged();
-    emit fatalErrorMessageChanged();
 }
 
-DaemonConnector* DaemonDiagnosticModel::daemonConnector() const noexcept {
-    return m_connector;
-}
-
-void DaemonDiagnosticModel::setTextInjector(AbstractTextInjector* injector) {
-    if (m_injector == injector) {
-        return;
-    }
-    m_injector = injector;
-}
-
-AbstractTextInjector* DaemonDiagnosticModel::textInjector() const noexcept {
-    return m_injector;
-}
-
-bool DaemonDiagnosticModel::isConnected() const {
-    if (m_connector) {
-        return m_connector->isConnected();
-    }
+bool DaemonDiagnosticModel::isConnected() {
     if (auto* client = DaemonClient::instance()) {
-        return client->directTypingConnected();
+        return client->textInjectionConnected();
     }
     return false;
 }
 
-bool DaemonDiagnosticModel::hasFatalError() const {
-    if (m_connector) {
-        return m_connector->hasFatalError();
-    }
+bool DaemonDiagnosticModel::hasFatalError() {
     if (auto* client = DaemonClient::instance()) {
-        return client->directTypingHasFatalError();
+        return client->textInjectionHasFatalError();
     }
     return false;
 }
 
-QString DaemonDiagnosticModel::fatalErrorMessage() const {
-    if (m_connector) {
-        return m_connector->fatalErrorMessage();
-    }
+QString DaemonDiagnosticModel::fatalErrorMessage() {
     if (auto* client = DaemonClient::instance()) {
-        return client->directTypingFatalErrorMessage();
+        return client->textInjectionFatalErrorMessage();
     }
-    return QString();
+    return {};
 }
 
-QString DaemonDiagnosticModel::lastError() const {
-    if (!m_lastError.isEmpty()) {
-        return m_lastError;
-    }
-    if (m_connector) {
-        return m_connector->lastError();
-    }
-    return QString();
+QString DaemonDiagnosticModel::lastError() {
+    return {};
 }
 
-QString DaemonDiagnosticModel::statusMessage() const {
-    if (!m_statusMessage.isEmpty()) {
-        return m_statusMessage;
-    }
-    if (m_connector) {
-        return m_connector->statusMessage();
-    }
+QString DaemonDiagnosticModel::statusMessage() {
     if (auto* client = DaemonClient::instance()) {
-        return client->directTypingStatus();
+        return client->textInjectionStatus();
     }
-    return QString();
+    return {};
 }
 
 bool DaemonDiagnosticModel::preventClipboardHistory() const {
@@ -150,13 +91,8 @@ bool DaemonDiagnosticModel::preventClipboardHistory() const {
 void DaemonDiagnosticModel::setPreventClipboardHistory(bool prevent) {
     if (m_preventClipboardHistory != prevent) {
         m_preventClipboardHistory = prevent;
-        {
-            QSettings settings;
-            settings.setValue(u"Clipboard/PreventHistory"_s, prevent);
-            settings.sync();
-            if (settings.status() != QSettings::NoError) {
-                qWarning() << "DaemonDiagnosticModel: Failed to save Clipboard/PreventHistory:" << settings.status();
-            }
+        if (auto* sc = SettingsClient::instance()) {
+            sc->setSetting(SettingsKeys::kClipboardPreventHistory.toString(), prevent);
         }
         emit preventClipboardHistoryChanged();
     }
@@ -169,25 +105,20 @@ int DaemonDiagnosticModel::injectionDelay() const {
 void DaemonDiagnosticModel::setInjectionDelay(int delayMs) {
     if (m_injectionDelay != delayMs) {
         m_injectionDelay = delayMs;
-        {
-            QSettings settings;
-            settings.setValue(u"Typing/PreInjectionDelayMs"_s, delayMs);
-            settings.sync();
-            if (settings.status() != QSettings::NoError) {
-                qWarning() << "DaemonDiagnosticModel: Failed to save Typing/PreInjectionDelayMs:" << settings.status();
-            }
+        if (auto* sc = SettingsClient::instance()) {
+            sc->setSetting(SettingsKeys::kTypingPreInjectionDelayMs.toString(), delayMs);
         }
         emit injectionDelayChanged();
     }
 }
 
-bool DaemonDiagnosticModel::isKde() const {
+bool DaemonDiagnosticModel::isKde() {
     const QString desktop =
         QProcessEnvironment::systemEnvironment().value(u"XDG_CURRENT_DESKTOP"_s, QString()).toLower();
     return desktop.contains(u"kde"_s);
 }
 
-bool DaemonDiagnosticModel::isDevBuild() const {
+bool DaemonDiagnosticModel::isDevBuild() {
     return QTSCRIBE_IS_DEV_BUILD;
 }
 
@@ -219,45 +150,43 @@ void DaemonDiagnosticModel::setClipboardBannerDismissed(bool dismissed) {
 }
 
 void DaemonDiagnosticModel::connectToServer() {
-    if (m_connector) {
-        m_connector->connectToServer();
-    } else if (auto* client = DaemonClient::instance()) {
-        client->restartDirectTyping();
+    if (auto* client = DaemonClient::instance()) {
+        client->restartTextInjection();
     }
 }
 
 void DaemonDiagnosticModel::disconnectFromServer() {
-    if (m_connector) {
-        m_connector->disconnectFromServer();
-    } else if (auto* client = DaemonClient::instance()) {
-        client->stopDirectTyping();
+    if (auto* client = DaemonClient::instance()) {
+        client->stopTextInjection();
     }
 }
 
 void DaemonDiagnosticModel::stopDaemon() {
-    if (m_connector) {
-        m_connector->stopDaemon();
-    } else if (auto* client = DaemonClient::instance()) {
-        client->stopDirectTyping();
+    if (auto* client = DaemonClient::instance()) {
+        client->stopTextInjection();
     }
 }
 
 void DaemonDiagnosticModel::restartService() {
-    if (m_connector) {
-        m_connector->restartService();
-    } else if (auto* client = DaemonClient::instance()) {
-        client->restartDirectTyping();
+    if (auto* client = DaemonClient::instance()) {
+        client->restartTextInjection();
     }
 }
 
-bool DaemonDiagnosticModel::testTyping(const QString& text) {
-    const QString injectionText = text.isEmpty() ? u" [QtScribe Test] "_s : text;
-    if (m_injector) {
-        return m_injector->inject(injectionText);
-    }
+bool DaemonDiagnosticModel::testTextInjection(const QString& /*text*/) {
     if (auto* client = DaemonClient::instance()) {
-        client->testDirectTyping();
+        client->testTextInjection();
         return true;
     }
     return false;
+}
+
+bool DaemonDiagnosticModel::testTyping(const QString& text) {
+    return testTextInjection(text);
+}
+
+void DaemonDiagnosticModel::reloadDaemonSettings() {
+    if (auto* sc = SettingsClient::instance()) {
+        sc->reloadSettings();
+    }
 }

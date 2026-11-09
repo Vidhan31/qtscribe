@@ -1,6 +1,6 @@
 #pragma once
 
-#include "AbstractSttClient.h"
+#include "AbstractOfflineSttClient.h"
 
 #include <QObject>
 #include <QPointer>
@@ -12,7 +12,7 @@
 class WhisperWorker;
 class WhisperModelManager;
 
-class WhisperSttClient : public AbstractSttClient {
+class WhisperSttClient : public AbstractOfflineSttClient {
     Q_OBJECT
 
     Q_PROPERTY(bool isModelInstalled READ isModelInstalled NOTIFY modelStatusChanged FINAL)
@@ -31,49 +31,44 @@ public:
     void setModelManager(WhisperModelManager* manager);
     WhisperModelManager* modelManager() const;
 
-    bool isModelInstalled() const;
-    bool isModelLoaded() const;
-    QString modelPath() const;
-    QString loadedModelPath() const;
+    bool isModelInstalled() const override;
+    bool isModelLoaded() const override;
+    QString modelPath() const override;
+    QString loadedModelPath() const override;
     QString modelsDirectory() const;
     QString modelFileName() const;
-    QString computeDevice() const;
+    QString computeDevice() const override;
     QString lastError() const override;
-    bool isVulkanSupported() const;
+    static bool isVulkanSupported();
 
     bool isReady() const override;
     bool isBusy() const override;
     [[nodiscard]] bool isActive() const noexcept { return m_active; }
-    [[nodiscard]] bool isExplicitlyUnloaded() const noexcept { return m_explicitlyUnloaded; }
+    [[nodiscard]] bool isExplicitlyUnloaded() const noexcept override { return m_explicitlyUnloaded; }
 
     void activate() override;
     void deactivate() override;
 
     Q_INVOKABLE void transcribe(const QByteArray& wavData) override;
     Q_INVOKABLE void cancel() override;
-    Q_INVOKABLE void loadModel(const QString& customPath = QString());
-    Q_INVOKABLE void unloadModel();
-    Q_INVOKABLE void checkModelStatus();
-    void loadSettings();
+    Q_INVOKABLE void loadModel(const QString& customPath = QString()) override;
+    Q_INVOKABLE void unloadModel() override;
+    Q_INVOKABLE void checkModelStatus() override;
+    void loadSettings() override;
 
 signals:
-    void modelStatusChanged();
-    void computeDeviceChanged();
-    void modelLoadFailed(const QString& modelPath, const QString& error);
-
     void requestLoadModel(uint64_t loadRequestId, const QString& path, bool useGpu);
     void requestUnloadModel(uint64_t unloadRequestId);
     void requestTranscribe(uint64_t requestId, const QByteArray& wavData, const QString& language,
                            const QString& prompt);
 
-private slots:
-    void onWorkerModelLoaded(uint64_t loadRequestId, const QString& modelPath, bool success, const QString& error,
-                             const QString& activeDevice);
-    void onWorkerModelUnloaded(uint64_t unloadRequestId = 0);
-    void onWorkerTranscriptionFinished(uint64_t requestId, const QString& text);
-    void onWorkerTranscriptionFailed(uint64_t requestId, const QString& error);
-
 private:
+    Q_INVOKABLE void onWorkerModelLoaded(uint64_t loadRequestId, const QString& modelPath, bool success,
+                                         const QString& error, const QString& activeDevice);
+    Q_INVOKABLE void onWorkerModelUnloaded(uint64_t unloadRequestId = 0);
+    Q_INVOKABLE void onWorkerTranscriptionFinished(uint64_t requestId, const QString& text);
+    Q_INVOKABLE void onWorkerTranscriptionFailed(uint64_t requestId, const QString& error);
+
     void setLastError(const QString& error);
     void setBusy(bool busy);
     QString resolveModelPath() const;

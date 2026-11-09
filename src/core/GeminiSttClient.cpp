@@ -2,9 +2,11 @@
 
 #include "LoggingCategories.h"
 
+#include "common/SettingsKeys.h"
 #include "ApiKeyStore.h"
 #include "CloudResponseParser.h"
 #include "NetworkTlsHelper.h"
+#include "SettingsManager.h"
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -24,20 +26,22 @@
 using namespace Qt::StringLiterals;
 using namespace std::chrono_literals;
 
-static inline GeminiSttClient* s_geminiInstance = nullptr;
-
 #ifndef QTSCRIBE_VERSION
 #define QTSCRIBE_VERSION "0.0.0-dev"
 #endif
 
-static QString geminiUserAgent() {
+namespace {
+GeminiSttClient* s_geminiInstance = nullptr;
+
+QString geminiUserAgent() {
     const QString appVer = QCoreApplication::applicationVersion().isEmpty() ? u"" QTSCRIBE_VERSION ""_s
                                                                             : QCoreApplication::applicationVersion();
     return u"QtScribe/%1 (Linux; Qt %2)"_s.arg(appVer, QString::fromUtf8(QT_VERSION_STR));
 }
+} // namespace
 
 GeminiSttClient::GeminiSttClient(QObject* parent)
-    : AbstractSttClient(parent)
+    : AbstractCloudSttClient(parent)
     , m_nam(new QNetworkAccessManager(this))
     , m_retryCountdownTimer(new QTimer(this))
     , m_retryTimer(new QTimer(this)) {
@@ -71,11 +75,15 @@ GeminiSttClient::GeminiSttClient(QObject* parent)
     });
 
     auto* defaultStore = new ApiKeyStore(this);
-    defaultStore->setStorageKeys(u"QtScribe"_s, u"gemini_api_key"_s, u"Cloud/Providers/Gemini/ApiKey"_s);
+    defaultStore->setStorageKeys(u"QtScribe"_s, u"gemini_api_key"_s, SettingsKeys::kGeminiSettingsKey.toString());
     setKeyStore(defaultStore);
     m_ownsKeyStore = true;
 
-    loadSettings();
+    if (auto* inst = SettingsManager::instance()) {
+        setSettingsManager(inst);
+    } else {
+        loadSettings();
+    }
 }
 
 GeminiSttClient::~GeminiSttClient() {
@@ -88,34 +96,71 @@ GeminiSttClient* GeminiSttClient::instance() {
     return s_geminiInstance;
 }
 
-GeminiSttClient* GeminiSttClient::create(QQmlEngine* /*qmlEngine*/, QJSEngine* /*jsEngine*/) {
-    if (!s_geminiInstance) {
-        s_geminiInstance = new GeminiSttClient();
+void GeminiSttClient::setSettingsManager(SettingsManager* settings) {
+    if (m_settingsManager == settings) {
+        return;
     }
-    return s_geminiInstance;
+    if (m_settingsManager) {
+        disconnect(m_settingsManager, nullptr, this, nullptr);
+    }
+    m_settingsManager = settings;
+    if (m_settingsManager) {
+        connect(m_settingsManager, &SettingsManager::geminiSttConfigChanged, this,
+                [this](const SettingsManager::GeminiSttConfig& config) {
+                    if (m_selectedModel != config.model) {
+                        m_selectedModel = config.model;
+                        emit selectedModelChanged();
+                    }
+                    if (m_mode != config.mode) {
+                        m_mode = config.mode;
+                        emit modeChanged();
+                    }
+                    if (m_customVocabulary != config.customVocabulary) {
+                        m_customVocabulary = config.customVocabulary;
+                        emit customVocabularyChanged();
+                    }
+                });
+    }
+    loadSettings();
+}
+
+SettingsManager* GeminiSttClient::settingsManager() const noexcept {
+    return m_settingsManager;
 }
 
 void GeminiSttClient::loadSettings() {
-    QSettings settings;
-    QString model = settings.value(u"Gemini/Model"_s, kDefaultModel.toString()).toString();
-    if (model.trimmed().isEmpty()) {
-        model = kDefaultModel.toString();
+    QString model = kDefaultModel.toString();
+    QString modeVal = kDefaultMode.toString();
+    QString vocab;
+
+    if (m_settingsManager) {
+        const auto& config = m_settingsManager->geminiSttConfig();
+        model = config.model;
+        modeVal = config.mode;
+        vocab = config.customVocabulary;
+    } else {
+        const QSettings settings;
+        model = settings.value(SettingsKeys::kGeminiModel.toString(), kDefaultModel.toString()).toString();
+        if (model.trimmed().isEmpty()) {
+            model = kDefaultModel.toString();
+        }
+        modeVal = settings.value(SettingsKeys::kGeminiMode.toString(), kDefaultMode.toString()).toString();
+        if (modeVal != u"smart"_s && modeVal != u"verbatim"_s) {
+            modeVal = kDefaultMode.toString();
+        }
+        vocab = settings.value(SettingsKeys::kGeminiCustomVocabulary.toString(), QString()).toString();
     }
+
     if (m_selectedModel != model) {
         m_selectedModel = model;
         emit selectedModelChanged();
     }
 
-    QString modeVal = settings.value(u"Gemini/Mode"_s, kDefaultMode.toString()).toString();
-    if (modeVal != u"smart"_s && modeVal != u"verbatim"_s) {
-        modeVal = kDefaultMode.toString();
-    }
     if (m_mode != modeVal) {
         m_mode = modeVal;
         emit modeChanged();
     }
 
-    QString vocab = settings.value(u"Gemini/CustomVocabulary"_s, QString()).toString();
     if (m_customVocabulary != vocab) {
         m_customVocabulary = vocab;
         emit customVocabularyChanged();
@@ -199,7 +244,7 @@ int GeminiSttClient::retrySecondsRemaining() const {
     return m_retrySecondsRemaining;
 }
 
-AbstractSttClient::ErrorCategory GeminiSttClient::errorCategory() const {
+AbstractCloudSttClient::ErrorCategory GeminiSttClient::errorCategory() const {
     return m_errorCategory;
 }
 
@@ -234,13 +279,12 @@ void GeminiSttClient::setSelectedModel(const QString& model) {
     }
     if (m_selectedModel != trimmed) {
         m_selectedModel = trimmed;
-        {
+        if (m_settingsManager) {
+            m_settingsManager->setGeminiModel(m_selectedModel);
+        } else {
             QSettings settings;
-            settings.setValue(u"Gemini/Model"_s, m_selectedModel);
+            settings.setValue(SettingsKeys::kGeminiModel.toString(), m_selectedModel);
             settings.sync();
-            if (settings.status() != QSettings::NoError) {
-                qWarning() << "GeminiSttClient: Failed to save Gemini/Model:" << settings.status();
-            }
         }
         emit selectedModelChanged();
     }
@@ -257,13 +301,12 @@ void GeminiSttClient::setMode(const QString& mode) {
     }
     if (m_mode != trimmed) {
         m_mode = trimmed;
-        {
+        if (m_settingsManager) {
+            m_settingsManager->setGeminiMode(m_mode);
+        } else {
             QSettings settings;
-            settings.setValue(u"Gemini/Mode"_s, m_mode);
+            settings.setValue(SettingsKeys::kGeminiMode.toString(), m_mode);
             settings.sync();
-            if (settings.status() != QSettings::NoError) {
-                qWarning() << "GeminiSttClient: Failed to save Gemini/Mode:" << settings.status();
-            }
         }
         emit modeChanged();
     }
@@ -276,13 +319,12 @@ QString GeminiSttClient::customVocabulary() const {
 void GeminiSttClient::setCustomVocabulary(const QString& vocab) {
     if (m_customVocabulary != vocab) {
         m_customVocabulary = vocab;
-        {
+        if (m_settingsManager) {
+            m_settingsManager->setGeminiCustomVocabulary(m_customVocabulary);
+        } else {
             QSettings settings;
-            settings.setValue(u"Gemini/CustomVocabulary"_s, m_customVocabulary);
+            settings.setValue(SettingsKeys::kGeminiCustomVocabulary.toString(), m_customVocabulary);
             settings.sync();
-            if (settings.status() != QSettings::NoError) {
-                qWarning() << "GeminiSttClient: Failed to save Gemini/CustomVocabulary:" << settings.status();
-            }
         }
         emit customVocabularyChanged();
     }
@@ -485,7 +527,7 @@ void GeminiSttClient::sendTranscribeRequest() {
 
     m_currentReply = m_nam->post(request, payload);
 
-    QPointer<GeminiSttClient> self = this;
+    const QPointer<GeminiSttClient> self = this;
     connect(m_currentReply, &QNetworkReply::finished, this, [self, timer]() {
         if (!self) {
             return;
@@ -523,15 +565,14 @@ bool GeminiSttClient::shouldRetry(const CloudApiResponse& res) const {
     return false;
 }
 
-int GeminiSttClient::calculateRetryDelayMs(const CloudApiResponse& res) const {
+int GeminiSttClient::calculateRetryDelayMs(const CloudApiResponse& res) {
     if (res.isRateLimited && res.retryAfterSeconds > 0) {
         return res.retryAfterSeconds * 1000;
     }
     return kDefaultDelayMs;
 }
 
-AbstractSttClient::ErrorCategory GeminiSttClient::classifyError(const CloudApiResponse& res,
-                                                                QString& outMessage) const {
+AbstractCloudSttClient::ErrorCategory GeminiSttClient::classifyError(const CloudApiResponse& res, QString& outMessage) {
     ErrorCategory cat = ErrorCategory::GeneralError;
     outMessage = res.errorMessage;
 
@@ -588,7 +629,7 @@ void GeminiSttClient::handleApiResponse(const CloudApiResponse& res) {
         setBusy(false);
 
         QString errorText;
-        ErrorCategory cat = classifyError(res, errorText);
+        const ErrorCategory cat = classifyError(res, errorText);
 
         if (cat == ErrorCategory::RateLimited && res.retryAfterSeconds > 0) {
             setRetrySecondsRemaining(res.retryAfterSeconds);

@@ -2,6 +2,9 @@
 
 #include "LoggingCategories.h"
 
+#include "common/SettingsKeys.h"
+#include "SettingsManager.h"
+
 #include <QCoreApplication>
 #include <QDBusConnection>
 #include <QDBusInterface>
@@ -13,7 +16,11 @@ using namespace Qt::StringLiterals;
 
 LinuxNotificationService::LinuxNotificationService(QObject* parent)
     : QObject(parent) {
-    loadSettings();
+    if (auto* inst = SettingsManager::instance()) {
+        setSettingsManager(inst);
+    } else {
+        loadSettings();
+    }
 
     if (QDBusConnection::sessionBus().isConnected()) {
         QDBusConnection::sessionBus().connect(u"org.freedesktop.Notifications"_s, u"/org/freedesktop/Notifications"_s,
@@ -26,6 +33,30 @@ LinuxNotificationService::LinuxNotificationService(QObject* parent)
     }
 }
 
+void LinuxNotificationService::setSettingsManager(SettingsManager* settings) {
+    if (m_settingsManager == settings) {
+        return;
+    }
+    if (m_settingsManager) {
+        disconnect(m_settingsManager, nullptr, this, nullptr);
+    }
+    m_settingsManager = settings;
+    if (m_settingsManager) {
+        connect(m_settingsManager, &SettingsManager::notificationConfigChanged, this,
+                [this](const SettingsManager::NotificationConfig& config) {
+                    if (m_enabled != config.notificationsEnabled) {
+                        m_enabled = config.notificationsEnabled;
+                        emit enabledChanged(m_enabled);
+                    }
+                });
+    }
+    loadSettings();
+}
+
+SettingsManager* LinuxNotificationService::settingsManager() const noexcept {
+    return m_settingsManager;
+}
+
 bool LinuxNotificationService::isEnabled() const {
     return m_enabled;
 }
@@ -33,21 +64,25 @@ bool LinuxNotificationService::isEnabled() const {
 void LinuxNotificationService::setEnabled(bool enable) {
     if (m_enabled != enable) {
         m_enabled = enable;
-        {
+        if (m_settingsManager) {
+            m_settingsManager->setNotificationsEnabled(m_enabled);
+        } else {
             QSettings settings;
-            settings.setValue(u"notifications/enabled"_s, m_enabled);
+            settings.setValue(SettingsKeys::kNotificationsEnabled.toString(), m_enabled);
             settings.sync();
-            if (settings.status() != QSettings::NoError) {
-                qWarning() << "LinuxNotificationService: Failed to save notifications/enabled:" << settings.status();
-            }
         }
         emit enabledChanged(m_enabled);
     }
 }
 
 void LinuxNotificationService::loadSettings() {
-    QSettings settings;
-    const bool enabled = settings.value(u"notifications/enabled"_s, true).toBool();
+    bool enabled = true;
+    if (m_settingsManager) {
+        enabled = m_settingsManager->notificationConfig().notificationsEnabled;
+    } else {
+        const QSettings settings;
+        enabled = settings.value(SettingsKeys::kNotificationsEnabled.toString(), true).toBool();
+    }
     if (m_enabled != enabled) {
         m_enabled = enabled;
         emit enabledChanged(m_enabled);
@@ -103,7 +138,7 @@ uint LinuxNotificationService::showNotification(const QString& title, const QStr
 uint LinuxNotificationService::showCategoryNotification(const QString& categoryKey, const QString& title,
                                                         const QString& body, Urgency urgency, const QString& icon,
                                                         int timeoutMs, const QStringList& actions) {
-    const uint replacesId = m_categoryIds.value(categoryKey, 0u);
+    const uint replacesId = m_categoryIds.value(categoryKey, 0U);
     const uint newId = showNotification(title, body, urgency, icon, timeoutMs, actions, replacesId);
     if (newId > 0) {
         m_categoryIds.insert(categoryKey, newId);

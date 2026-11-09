@@ -67,8 +67,9 @@ public:
     Q_INVOKABLE void setSearchFilter(const QString& filter);
     Q_INVOKABLE void addRecord(const QString& text);
     Q_INVOKABLE void clearAll();
-    Q_INVOKABLE void copyToClipboard(const QString& text);
+    Q_INVOKABLE static void copyToClipboard(const QString& text);
     Q_INVOKABLE void loadHistory(const QString& filePath = QString());
+    Q_INVOKABLE void loadFromJson(const QString& json);
 
 signals:
     void countChanged();

@@ -1,22 +1,8 @@
-#include "DBusService.h"
-#include "DaemonDiagnosticModel.h"
-#include "DictationCoordinator.h"
-#include "GroqLlmClient.h"
-#include "GroqSttClient.h"
-#include "LoggingCategories.h"
-
-#include "AudioFeedbackPlayer.h"
-#include "CloudProviderModel.h"
 #include "DaemonClient.h"
-#include "GeminiSttClient.h"
-#include "GuiWhisperClient.h"
-#include "LinuxNotificationService.h"
-#include "WhisperModelManager.h"
 
 #include <QCommandLineOption>
 #include <QCommandLineParser>
 #include <QDBusConnection>
-#include <QDBusConnectionInterface>
 #include <QDBusInterface>
 #include <QFile>
 #include <QGuiApplication>
@@ -45,14 +31,13 @@ public:
     explicit SettingsGuiService(QObject* parent = nullptr)
         : QObject(parent) { }
 
-public slots:
-    void activateWindow() {
+    Q_INVOKABLE static void activateWindow() {
         if (auto* client = DaemonClient::instance()) {
             client->showWindow();
         }
     }
 
-    void navigateToSection(const QString& section) {
+    Q_INVOKABLE static void navigateToSection(const QString& section) {
         if (auto* client = DaemonClient::instance()) {
             client->showWindow();
             client->navigateToSection(section);
@@ -64,8 +49,11 @@ public slots:
  * @brief Application entry point for the QtScribe GUI client.
  *
  * Configures the Wayland platform environment, single-instance D-Bus registration,
- * registers QML types, initializes the settings and daemon client backends, and
- * launches the main QML application engine.
+ * registers QML types, initializes the daemon client façade, and launches the main
+ * QML application engine.
+ *
+ * All speech, audio, model download, and notification work runs in qtscribed; the
+ * GUI is a pure D-Bus presentation layer.
  */
 int main(int argc, char* argv[]) {
     if (qEnvironmentVariableIsEmpty("QT_QPA_PLATFORM")) {
@@ -77,25 +65,25 @@ int main(int argc, char* argv[]) {
         QQuickStyle::setStyle(u"Fusion"_s);
         QQuickStyle::setFallbackStyle(u"Fusion"_s);
     }
-    app.setApplicationName(u"QtScribe"_s);
-    app.setApplicationVersion(u"" QTSCRIBE_VERSION ""_s);
-    app.setOrganizationName(u"QtScribe"_s);
-    app.setOrganizationDomain(u"io.github.qtscribe"_s);
-    app.setDesktopFileName(u"io.github.qtscribe"_s);
-    app.setQuitOnLastWindowClosed(true);
+    QGuiApplication::setApplicationName(u"QtScribe"_s);
+    QGuiApplication::setApplicationVersion(u"" QTSCRIBE_VERSION ""_s);
+    QGuiApplication::setOrganizationName(u"QtScribe"_s);
+    QGuiApplication::setOrganizationDomain(u"io.github.qtscribe"_s);
+    QGuiApplication::setDesktopFileName(u"io.github.qtscribe"_s);
+    QGuiApplication::setQuitOnLastWindowClosed(true);
 
     QCommandLineParser parser;
     parser.setApplicationDescription(u"QtScribe — Wayland native Speech-to-Text application"_s);
     parser.addHelpOption();
     parser.addVersionOption();
 
-    QCommandLineOption daemonOption(u"daemon"_s, u"Launch the headless daemon (qtscribed)"_s);
-    QCommandLineOption toggleOption({u"t"_s, u"toggle"_s}, u"Toggle speech-to-text recording"_s);
-    QCommandLineOption startOption(u"start"_s, u"Start speech-to-text recording"_s);
-    QCommandLineOption stopOption(u"stop"_s, u"Stop speech-to-text recording"_s);
-    QCommandLineOption showOption({u"s"_s, u"show"_s}, u"Show and activate the main window"_s);
-    QCommandLineOption quitOption({u"q"_s, u"quit"_s}, u"Quit the running application"_s);
-    QCommandLineOption sectionOption(u"section"_s, u"Navigate to settings section on startup"_s, u"section"_s);
+    const QCommandLineOption daemonOption(u"daemon"_s, u"Launch the headless daemon (qtscribed)"_s);
+    const QCommandLineOption toggleOption({u"t"_s, u"toggle"_s}, u"Toggle speech-to-text recording"_s);
+    const QCommandLineOption startOption(u"start"_s, u"Start speech-to-text recording"_s);
+    const QCommandLineOption stopOption(u"stop"_s, u"Stop speech-to-text recording"_s);
+    const QCommandLineOption showOption({u"s"_s, u"show"_s}, u"Show and activate the main window"_s);
+    const QCommandLineOption quitOption({u"q"_s, u"quit"_s}, u"Quit the running application"_s);
+    const QCommandLineOption sectionOption(u"section"_s, u"Navigate to settings section on startup"_s, u"section"_s);
 
     parser.addOption(daemonOption);
     parser.addOption(toggleOption);
@@ -111,7 +99,7 @@ int main(int argc, char* argv[]) {
         const QString appDir = QCoreApplication::applicationDirPath();
         const QString daemonInAppDir = appDir + u"/qtscribed"_s;
         const QString daemonExec = QFile::exists(daemonInAppDir) ? daemonInAppDir : u"qtscribed"_s;
-        qCDebug(lcSpeech) << "QtScribe: Starting background daemon:" << daemonExec << args;
+        qInfo() << "QtScribe: Starting background daemon:" << daemonExec << args;
         return QProcess::startDetached(daemonExec, args);
     };
 
@@ -120,22 +108,22 @@ int main(int argc, char* argv[]) {
     }
 
     if (parser.isSet(toggleOption)) {
-        if (DBusService::sendRemoteCommand(u"toggleRecording"_s)) {
+        if (DaemonClient::sendRemoteCommand(u"toggleRecording"_s)) {
             return 0;
         }
         return launchDaemon({u"--toggle"_s}) ? 0 : 1;
     }
     if (parser.isSet(startOption)) {
-        if (DBusService::sendRemoteCommand(u"startRecording"_s)) {
+        if (DaemonClient::sendRemoteCommand(u"startRecording"_s)) {
             return 0;
         }
         return launchDaemon({u"--start"_s}) ? 0 : 1;
     }
     if (parser.isSet(stopOption)) {
-        return DBusService::sendRemoteCommand(u"stopRecording"_s) ? 0 : 1;
+        return DaemonClient::sendRemoteCommand(u"stopRecording"_s) ? 0 : 1;
     }
     if (parser.isSet(quitOption)) {
-        return DBusService::sendRemoteCommand(u"quitApp"_s) ? 0 : 1;
+        return DaemonClient::sendRemoteCommand(u"quitApp"_s) ? 0 : 1;
     }
 
     const QString kGuiService = u"io.github.qtscribe.SettingsGui"_s;
@@ -143,7 +131,8 @@ int main(int argc, char* argv[]) {
 
     if (QDBusConnection::sessionBus().isConnected()) {
         auto* guiService = new SettingsGuiService(&app);
-        QDBusConnection::sessionBus().registerObject(kGuiPath, guiService, QDBusConnection::ExportAllSlots);
+        QDBusConnection::sessionBus().registerObject(
+            kGuiPath, guiService, QDBusConnection::ExportAllSlots | QDBusConnection::ExportAllInvokables);
         if (!QDBusConnection::sessionBus().registerService(kGuiService)) {
             QDBusConnection::sessionBus().unregisterObject(kGuiPath);
             QDBusInterface guiIface(kGuiService, kGuiPath, kGuiService, QDBusConnection::sessionBus());
@@ -158,25 +147,22 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    if (!DBusService::isRemoteRunning()) {
+    if (!DaemonClient::isServiceRunning()) {
         launchDaemon({});
     }
 
     QIcon appIcon;
     constexpr auto kIconSizes = std::to_array({16, 24, 32, 64, 128, 256, 512});
-    for (int sz : kIconSizes) {
+    for (const int sz : kIconSizes) {
         appIcon.addFile(QString(u":/qt/qml/QtScribe/assets/speech-to-text-%1.png"_s).arg(sz), QSize(sz, sz));
     }
-    app.setWindowIcon(appIcon);
+    QGuiApplication::setWindowIcon(appIcon);
 
     QQmlApplicationEngine engine;
 
     QObject::connect(&engine, &QQmlEngine::quit, []() { QCoreApplication::exit(0); });
 
     QObject::connect(&app, &QGuiApplication::aboutToQuit, []() {
-        if (!DBusService::isRemoteRunning()) {
-            DictationCoordinator::removeHistoryFile();
-        }
         if (auto* client = DaemonClient::instance()) {
             client->setClientWindowFocused(false);
         }
@@ -190,62 +176,6 @@ int main(int argc, char* argv[]) {
 
     engine.loadFromModule("QtScribe", "Main");
 
-    auto* daemonClient = DaemonClient::instance();
-    const auto connectReload = [daemonClient](auto* sender, auto signal) {
-        if (sender && daemonClient) {
-            QObject::connect(sender, signal, daemonClient, &DaemonClient::reloadSettings);
-        }
-    };
-
-    if (auto* groqLlm = engine.singletonInstance<GroqLlmClient*>("QtScribe", "GroqLlmClient")) {
-        connectReload(groqLlm, &GroqLlmClient::enabledChanged);
-        connectReload(groqLlm, &GroqLlmClient::selectedModelChanged);
-        connectReload(groqLlm, &GroqLlmClient::activePresetChanged);
-        connectReload(groqLlm, &GroqLlmClient::customPromptChanged);
-        connectReload(groqLlm, &GroqLlmClient::temperatureChanged);
-    }
-
-    if (auto* groqStt = engine.singletonInstance<GroqSttClient*>("QtScribe", "GroqSttClient")) {
-        connectReload(groqStt, &GroqSttClient::selectedModelChanged);
-        connectReload(groqStt, &GroqSttClient::languageChanged);
-        connectReload(groqStt, &GroqSttClient::customPromptChanged);
-    }
-
-    if (auto* geminiStt = engine.singletonInstance<GeminiSttClient*>("QtScribe", "GeminiSttClient")) {
-        connectReload(geminiStt, &GeminiSttClient::selectedModelChanged);
-        connectReload(geminiStt, &GeminiSttClient::modeChanged);
-        connectReload(geminiStt, &GeminiSttClient::customVocabularyChanged);
-    }
-
-    if (auto* whisperManager = engine.singletonInstance<WhisperModelManager*>("QtScribe", "WhisperModelManager")) {
-        connectReload(whisperManager, &WhisperModelManager::selectedModelChanged);
-        connectReload(whisperManager, &WhisperModelManager::modelStatusChanged);
-        if (auto* whisperGui = GuiWhisperClient::instance()) {
-            QObject::connect(whisperManager, &WhisperModelManager::selectedModelChanged, whisperGui,
-                             &GuiWhisperClient::modelStatusChanged);
-            QObject::connect(whisperManager, &WhisperModelManager::modelStatusChanged, whisperGui,
-                             &GuiWhisperClient::modelStatusChanged);
-        }
-    }
-
-    if (auto* audioPlayer = engine.singletonInstance<AudioFeedbackPlayer*>("QtScribe", "AudioFeedbackPlayer")) {
-        connectReload(audioPlayer, &AudioFeedbackPlayer::soundEnabledChanged);
-    }
-
-    if (auto* notifService =
-            engine.singletonInstance<LinuxNotificationService*>("QtScribe", "LinuxNotificationService")) {
-        connectReload(notifService, &LinuxNotificationService::enabledChanged);
-    }
-
-    if (auto* diagModel = engine.singletonInstance<DaemonDiagnosticModel*>("QtScribe", "DaemonDiagnosticModel")) {
-        connectReload(diagModel, &DaemonDiagnosticModel::preventClipboardHistoryChanged);
-        connectReload(diagModel, &DaemonDiagnosticModel::injectionDelayChanged);
-    }
-
-    if (auto* cloudProvider = engine.singletonInstance<CloudProviderModel*>("QtScribe", "CloudProviderModel")) {
-        connectReload(cloudProvider, &CloudProviderModel::activeProviderChanged);
-    }
-
     if (parser.isSet(sectionOption)) {
         const QString section = parser.value(sectionOption);
         QTimer::singleShot(0, [section]() {
@@ -255,7 +185,7 @@ int main(int argc, char* argv[]) {
         });
     }
 
-    return app.exec();
+    return QGuiApplication::exec();
 }
 
 #include "main.moc"

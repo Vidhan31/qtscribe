@@ -4,9 +4,10 @@
 #include <QString>
 #include <QtQmlIntegration/qqmlintegration.h>
 
-class AbstractTextInjector;
-class DaemonConnector;
-
+// Read-mostly diagnostics view over the daemon's text-injection state.
+//
+// The GUI never owns the injection connector; it only reflects and commands the
+// daemon over D-Bus.
 class DaemonDiagnosticModel : public QObject {
     Q_OBJECT
     QML_ELEMENT
@@ -31,17 +32,11 @@ public:
     explicit DaemonDiagnosticModel(QObject* parent = nullptr);
     ~DaemonDiagnosticModel() override = default;
 
-    void setDaemonConnector(DaemonConnector* connector);
-    [[nodiscard]] DaemonConnector* daemonConnector() const noexcept;
-
-    void setTextInjector(AbstractTextInjector* injector);
-    [[nodiscard]] AbstractTextInjector* textInjector() const noexcept;
-
-    [[nodiscard]] bool isConnected() const;
-    [[nodiscard]] bool hasFatalError() const;
-    [[nodiscard]] QString fatalErrorMessage() const;
-    [[nodiscard]] QString lastError() const;
-    [[nodiscard]] QString statusMessage() const;
+    [[nodiscard]] static bool isConnected();
+    [[nodiscard]] static bool hasFatalError();
+    [[nodiscard]] static QString fatalErrorMessage();
+    [[nodiscard]] static QString lastError();
+    [[nodiscard]] static QString statusMessage();
 
     [[nodiscard]] bool preventClipboardHistory() const;
     void setPreventClipboardHistory(bool prevent);
@@ -49,19 +44,20 @@ public:
     [[nodiscard]] int injectionDelay() const;
     void setInjectionDelay(int delayMs);
 
-    [[nodiscard]] bool isKde() const;
-    [[nodiscard]] bool isDevBuild() const;
+    [[nodiscard]] static bool isKde();
+    [[nodiscard]] static bool isDevBuild();
     [[nodiscard]] bool clipboardWarningAcknowledged() const;
     void setClipboardWarningAcknowledged(bool acknowledged);
     [[nodiscard]] bool clipboardWarningRequired() const;
     [[nodiscard]] bool clipboardBannerDismissed() const;
     void setClipboardBannerDismissed(bool dismissed);
 
-    Q_INVOKABLE void connectToServer();
-    Q_INVOKABLE void disconnectFromServer();
-    Q_INVOKABLE void stopDaemon();
-    Q_INVOKABLE void restartService();
-    Q_INVOKABLE bool testTyping(const QString& text = QString());
+    Q_INVOKABLE static void connectToServer();
+    Q_INVOKABLE static void disconnectFromServer();
+    Q_INVOKABLE static void stopDaemon();
+    Q_INVOKABLE static void restartService();
+    Q_INVOKABLE static bool testTextInjection(const QString& text = QString());
+    Q_INVOKABLE static bool testTyping(const QString& text = QString());
 
 signals:
     void connectedChanged();
@@ -76,10 +72,8 @@ signals:
     void clipboardBannerDismissedChanged();
 
 private:
-    DaemonConnector* m_connector = nullptr;
-    AbstractTextInjector* m_injector = nullptr;
-    QString m_lastError;
-    QString m_statusMessage;
+    static void reloadDaemonSettings();
+
     int m_injectionDelay = 200;
     bool m_preventClipboardHistory = true;
     bool m_clipboardWarningAcknowledged = false;

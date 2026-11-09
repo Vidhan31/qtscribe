@@ -3,6 +3,10 @@ add_library(qtscribe_core STATIC
     ApplicationContext.cpp
     AbstractSttClient.h
     AbstractSttClient.cpp
+    AbstractCloudSttClient.h
+    AbstractCloudSttClient.cpp
+    AbstractOfflineSttClient.h
+    AbstractOfflineSttClient.cpp
     AbstractLlmClient.h
     AbstractLlmClient.cpp
     AudioFeedbackPlayer.h
@@ -13,8 +17,6 @@ add_library(qtscribe_core STATIC
     GlobalShortcutManager.cpp
     ApiKeyStore.h
     ApiKeyStore.cpp
-    PresetProvider.h
-    PresetProvider.cpp
     CloudResponseParser.h
     CloudResponseParser.cpp
     HttpRequestRunner.h
@@ -53,8 +55,26 @@ add_library(qtscribe_core STATIC
     CompositeSttEngine.cpp
     NotificationPresenter.h
     NotificationPresenter.cpp
+    HistoryRepository.h
+    HistoryRepository.cpp
     DictationCoordinator.h
     DictationCoordinator.cpp
+    SettingsManager.h
+    SettingsManager.cpp
+    SettingsService.h
+    SettingsService.cpp
+    SettingsAdaptor.h
+    SettingsAdaptor.cpp
+    ModelService.h
+    ModelService.cpp
+    SystemService.h
+    SystemService.cpp
+    SpeechAdaptor.h
+    SpeechAdaptor.cpp
+    ModelAdaptor.h
+    ModelAdaptor.cpp
+    SystemAdaptor.h
+    SystemAdaptor.cpp
     DBusService.h
     DBusService.cpp
     LoggingCategories.h
@@ -82,7 +102,6 @@ target_link_libraries(qtscribe_core
         Qt6::Network
         Qt6::Multimedia
         Qt6::DBus
-        Qt6::QmlIntegration
         Qt6Keychain::Qt6Keychain
     PRIVATE
         qtscribe::compiler_flags

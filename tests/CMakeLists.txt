@@ -103,6 +103,10 @@ add_qtscribe_test(dictation_coordinator
         test_dictation_coordinator.cpp
         ${CMAKE_SOURCE_DIR}/src/ui/DictationPadModel.cpp
         ${CMAKE_SOURCE_DIR}/src/ui/TranscriptionModel.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/SpeechClient.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/ModelClient.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/SettingsClient.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/SystemClient.cpp
         ${CMAKE_SOURCE_DIR}/src/ui/DaemonClient.cpp
     LIBRARIES Qt6::Gui Qt6::Multimedia Qt6::Network Qt6::DBus
 )
@@ -159,8 +163,26 @@ add_qtscribe_test(cloud_provider_model
     SOURCES
         test_cloud_provider_model.cpp
         ${CMAKE_SOURCE_DIR}/src/ui/CloudProviderModel.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/SpeechClient.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/ModelClient.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/SettingsClient.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/SystemClient.cpp
         ${CMAKE_SOURCE_DIR}/src/ui/DaemonClient.cpp
         ${CMAKE_SOURCE_DIR}/src/ui/NavigationModel.cpp
+    LIBRARIES
+        Qt6::DBus
+)
+
+add_qtscribe_test(model_catalog_model
+    TEST_NAME ModelCatalogModelTest
+    SOURCES
+        test_model_catalog_model.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/ModelCatalogModel.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/SpeechClient.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/ModelClient.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/SettingsClient.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/SystemClient.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/DaemonClient.cpp
     LIBRARIES
         Qt6::DBus
 )
@@ -185,11 +207,20 @@ add_qtscribe_test(text_injector
     LIBRARIES Qt6::Network
 )
 
+add_qtscribe_test(settings_manager
+    TEST_NAME SettingsManagerTest
+    LIBRARIES Qt6::Network Qt6::DBus
+)
+
 add_qtscribe_test(daemon_diagnostic_model
     TEST_NAME DaemonDiagnosticModelTest
     SOURCES
         test_daemon_diagnostic_model.cpp
         ${CMAKE_SOURCE_DIR}/src/ui/DaemonDiagnosticModel.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/SpeechClient.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/ModelClient.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/SettingsClient.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/SystemClient.cpp
         ${CMAKE_SOURCE_DIR}/src/ui/DaemonClient.cpp
     LIBRARIES
         Qt6::Network
@@ -211,11 +242,23 @@ add_qtscribe_test(cloud_response_parser
     LIBRARIES Qt6::Network
 )
 
+add_qtscribe_test(history_repository
+    TEST_NAME HistoryRepositoryTest
+    SOURCES
+        test_history_repository.cpp
+    LIBRARIES
+        Qt6::Core
+)
+
 add_qtscribe_test(transcription_model
     TEST_NAME TranscriptionModelTest
     SOURCES
         test_transcription_model.cpp
         ${CMAKE_SOURCE_DIR}/src/ui/TranscriptionModel.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/SpeechClient.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/ModelClient.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/SettingsClient.cpp
+        ${CMAKE_SOURCE_DIR}/src/ui/SystemClient.cpp
         ${CMAKE_SOURCE_DIR}/src/ui/DaemonClient.cpp
     LIBRARIES
         Qt6::Gui

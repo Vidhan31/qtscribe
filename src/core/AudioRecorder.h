@@ -4,15 +4,12 @@
 #include <QByteArray>
 #include <QObject>
 #include <QString>
-#include <QtQmlIntegration/qqmlintegration.h>
 
 class QAudioSource;
 class QTimer;
 
 class AudioRecorder : public QObject {
     Q_OBJECT
-    QML_ELEMENT
-    QML_SINGLETON
 
     Q_PROPERTY(bool recording READ recording NOTIFY recordingChanged FINAL)
     Q_PROPERTY(bool hasAudioInputDevice READ hasAudioInputDevice NOTIFY hasAudioInputDeviceChanged FINAL)
@@ -30,9 +27,11 @@ public:
     QString statusMessage() const;
     qreal audioLevel() const;
 
-public slots:
+    Q_SLOT
     virtual void startRecording();
+    Q_SLOT
     virtual void stopRecording();
+    Q_SLOT
     virtual void cancelRecording();
 
 signals:
@@ -52,11 +51,12 @@ protected:
     void setStatusMessage(const QString& message);
     void setAudioLevel(qreal level);
 
-private slots:
+private:
+    Q_SLOT
     void onReadyRead();
+    Q_SLOT
     void onAudioInputsChanged();
 
-private:
     QByteArray buildWavFile(const QByteArray& pcmData) const;
     void cleanupRecording();
 

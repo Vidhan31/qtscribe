@@ -47,7 +47,8 @@ Item {
             }
 
             StyledText {
-                text: qsTr("Configure appearance, recording mode, feedback sounds, direct typing, and global shortcuts")
+                text: qsTr(
+                          "Configure appearance, recording mode, feedback sounds, text injection, and global shortcuts")
                 variant: "caption"
                 colorRole: "secondary"
             }
@@ -85,7 +86,7 @@ Item {
             description: qsTr("Choose how global shortcuts and recording triggers activate speech transcription")
 
             StatusBanner {
-                visible: !SystemHealthMonitor.pushToTalkSupported
+                visible: !DaemonClient.pushToTalkSupported
                 bannerType: "warning"
                 title: qsTr("Push-to-Talk Unavailable on Current Desktop")
                 message: qsTr(
@@ -110,8 +111,7 @@ Item {
                                                                                                 Theme.cardBorder)
                     border.width: isSelected ? 2 : 1
 
-                    readonly property bool isSelected: DictationCoordinator.recordingMode
-                                                       === DictationCoordinator.Toggle
+                    readonly property bool isSelected: DaemonClient.recordingMode === DaemonClient.Toggle
 
                     Behavior on color {
                         ColorAnimation {
@@ -209,7 +209,7 @@ Item {
                         hoverEnabled: true
                         cursorShape: Qt.PointingHandCursor
                         onClicked: {
-                            DictationCoordinator.recordingMode = DictationCoordinator.Toggle;
+                            DaemonClient.recordingMode = DaemonClient.Toggle;
                         }
                     }
                 }
@@ -219,17 +219,15 @@ Item {
                     Layout.fillWidth: true
                     Layout.preferredHeight: pttContent.implicitHeight + (Theme.spacingMd * 2)
                     radius: Theme.radiusMd
-                    opacity: SystemHealthMonitor.pushToTalkSupported ? 1.0 : 0.6
-                    color: isSelected ? Theme.selectedBg : (pttMouse.containsMouse
-                                                            && SystemHealthMonitor.pushToTalkSupported
+                    opacity: DaemonClient.pushToTalkSupported ? 1.0 : 0.6
+                    color: isSelected ? Theme.selectedBg : (pttMouse.containsMouse && DaemonClient.pushToTalkSupported
                                                             ? Theme.cardBgElevated : Theme.cardBgSubtle)
                     border.color: isSelected ? Theme.accentColor : (pttMouse.containsMouse
-                                                                    && SystemHealthMonitor.pushToTalkSupported
+                                                                    && DaemonClient.pushToTalkSupported
                                                                     ? Theme.cardBorderHover : Theme.cardBorder)
                     border.width: isSelected ? 2 : 1
 
-                    readonly property bool isSelected: DictationCoordinator.recordingMode
-                                                       === DictationCoordinator.PushToTalk
+                    readonly property bool isSelected: DaemonClient.recordingMode === DaemonClient.PushToTalk
 
                     Behavior on color {
                         ColorAnimation {
@@ -295,7 +293,7 @@ Item {
                             StateBadge {
                                 text: qsTr("Unavailable")
                                 statusType: "warning"
-                                visible: !SystemHealthMonitor.pushToTalkSupported
+                                visible: !DaemonClient.pushToTalkSupported
                                 showDot: false
                             }
                         }
@@ -331,12 +329,12 @@ Item {
                     MouseArea {
                         id: pttMouse
                         anchors.fill: parent
-                        hoverEnabled: SystemHealthMonitor.pushToTalkSupported
-                        cursorShape: SystemHealthMonitor.pushToTalkSupported ? Qt.PointingHandCursor : Qt.ArrowCursor
-                        enabled: SystemHealthMonitor.pushToTalkSupported
+                        hoverEnabled: DaemonClient.pushToTalkSupported
+                        cursorShape: DaemonClient.pushToTalkSupported ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        enabled: DaemonClient.pushToTalkSupported
                         onClicked: {
-                            if (SystemHealthMonitor.pushToTalkSupported) {
-                                DictationCoordinator.recordingMode = DictationCoordinator.PushToTalk;
+                            if (DaemonClient.pushToTalkSupported) {
+                                DaemonClient.recordingMode = DaemonClient.PushToTalk;
                             }
                         }
                     }
@@ -352,9 +350,9 @@ Item {
                 id: soundSwitch
                 title: qsTr("Feedback Sounds")
                 description: qsTr("Play sound effects on recording start and completion")
-                checked: AudioFeedbackPlayer.soundEnabled
+                checked: AppSettings.soundEnabled
                 onToggled: {
-                    AudioFeedbackPlayer.soundEnabled = soundSwitch.checked;
+                    AppSettings.soundEnabled = soundSwitch.checked;
                 }
             }
 
@@ -363,8 +361,8 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 spacing: Theme.spacingSm
-                opacity: AudioFeedbackPlayer.soundEnabled ? 1.0 : 0.5
-                enabled: AudioFeedbackPlayer.soundEnabled
+                opacity: AppSettings.soundEnabled ? 1.0 : 0.5
+                enabled: AppSettings.soundEnabled
 
                 StyledText {
                     text: qsTr("Preview:")
@@ -380,14 +378,14 @@ Item {
                     id: playStartBtn
                     text: qsTr("Play Start Sound")
                     size: "small"
-                    onClicked: AudioFeedbackPlayer.playStartSound()
+                    onClicked: DaemonClient.playStartSound()
                 }
 
                 StyledButton {
                     id: playStopBtn
                     text: qsTr("Play Stop Sound")
                     size: "small"
-                    onClicked: AudioFeedbackPlayer.playStopSound()
+                    onClicked: DaemonClient.playStopSound()
                 }
             }
         }
@@ -400,9 +398,9 @@ Item {
                 id: notificationSwitch
                 title: qsTr("Desktop Notifications")
                 description: qsTr("Show system notifications for errors, safety limits, and download events")
-                checked: LinuxNotificationService.enabled
+                checked: AppSettings.notificationsEnabled
                 onToggled: {
-                    LinuxNotificationService.enabled = notificationSwitch.checked;
+                    AppSettings.notificationsEnabled = notificationSwitch.checked;
                 }
             }
         }
@@ -430,7 +428,7 @@ Item {
                         implicitHeight: 8
                         from: 0.0
                         to: 1.0
-                        value: Math.min(1.0, Math.max(0.0, AudioRecorder.audioLevel))
+                        value: Math.min(1.0, Math.max(0.0, DaemonClient.microphoneTestLevel))
 
                         background: Rectangle {
                             radius: Theme.radiusCircle
@@ -444,13 +442,13 @@ Item {
                                 anchors.left: parent.left
                                 anchors.top: parent.top
                                 anchors.bottom: parent.bottom
-                                width: parent.width * Math.min(1.0, Math.max(0.0, AudioRecorder.audioLevel))
+                                width: parent.width * Math.min(1.0, Math.max(0.0, DaemonClient.microphoneTestLevel))
                                 radius: Theme.radiusCircle
 
                                 color: {
-                                    if (AudioRecorder.audioLevel > 0.85)
+                                    if (DaemonClient.microphoneTestLevel > 0.85)
                                     return Theme.colorDanger;
-                                    if (AudioRecorder.audioLevel > 0.6)
+                                    if (DaemonClient.microphoneTestLevel > 0.6)
                                     return Theme.colorWarning;
                                     return Theme.colorSuccess;
                                 }
@@ -466,7 +464,7 @@ Item {
                     }
 
                     StyledText {
-                        text: qsTr("%1%").arg(Math.round(AudioRecorder.audioLevel * 100))
+                        text: qsTr("%1%").arg(Math.round(DaemonClient.microphoneTestLevel * 100))
                         variant: "caption"
                         customWeight: Font.Bold
                         Layout.preferredWidth: 36
@@ -479,24 +477,24 @@ Item {
                     spacing: Theme.spacingSm
 
                     StyledText {
-                        text: AudioRecorder.recording ? qsTr("Recording active — speak into microphone") : qsTr(
-                                                            "Microphone idle")
+                        text: DaemonClient.microphoneTestActive ? qsTr("Recording active — speak into microphone") :
+                                                                  qsTr("Microphone idle")
                         variant: "caption"
-                        customColor: AudioRecorder.recording ? Theme.colorSuccess : Theme.textSecondary
+                        customColor: DaemonClient.microphoneTestActive ? Theme.colorSuccess : Theme.textSecondary
                         Layout.fillWidth: true
                     }
 
                     StyledButton {
                         id: testMicBtn
-                        text: AudioRecorder.recording ? qsTr("Stop Test") : qsTr("Test Microphone")
-                        enabled: !DictationCoordinator.isBusy || AudioRecorder.recording
+                        text: DaemonClient.microphoneTestActive ? qsTr("Stop Test") : qsTr("Test Microphone")
+                        enabled: !DaemonClient.isBusy || DaemonClient.microphoneTestActive
                         size: "small"
-                        variant: AudioRecorder.recording ? "danger" : "secondary"
+                        variant: DaemonClient.microphoneTestActive ? "danger" : "secondary"
                         onClicked: {
-                            if (AudioRecorder.recording) {
-                                AudioRecorder.cancelRecording();
+                            if (DaemonClient.microphoneTestActive) {
+                                DaemonClient.stopMicrophoneTest();
                             } else {
-                                AudioRecorder.startRecording();
+                                DaemonClient.startMicrophoneTest();
                             }
                         }
                     }
@@ -505,8 +503,8 @@ Item {
         }
 
         StyledCard {
-            title: qsTr("Direct Typing")
-            description: qsTr("Types text directly into the active application")
+            title: qsTr("Text Injection")
+            description: qsTr("Injects transcribed text directly into the active application")
 
             ColumnLayout {
                 Layout.fillWidth: true
@@ -531,7 +529,7 @@ Item {
                                                                          > 0 ? DaemonDiagnosticModel.fatalErrorMessage :
                                                                                qsTr("Service failed to start")) : (
                                                                             DaemonDiagnosticModel.connected ? qsTr(
-                                                                                                                  "Connected to background typing service") :
+                                                                                                                  "Connected to background text injection service") :
                                                                                                               (DaemonDiagnosticModel.statusMessage.length
                                                                                                                > 0 ? DaemonDiagnosticModel.statusMessage :
                                                                                                                      qsTr("Not running — using clipboard fallback")))
@@ -553,12 +551,12 @@ Item {
                     spacing: Theme.spacingSm
 
                     StyledButton {
-                        id: testTypingBtn
-                        text: qsTr("Test Typing")
+                        id: testInjectionBtn
+                        text: qsTr("Test Injection")
                         enabled: !DaemonDiagnosticModel.hasFatalError
                         size: "small"
                         onClicked: {
-                            DaemonDiagnosticModel.testTyping();
+                            DaemonDiagnosticModel.testTextInjection();
                         }
                     }
 
@@ -745,14 +743,13 @@ Item {
                         }
 
                         StyledText {
-                            text: DictationCoordinator.shortcutStatusMessage.length > 0
-                                  ? DictationCoordinator.shortcutStatusMessage : qsTr(
-                                        "Registered via Desktop Portal (Ctrl+Shift+Space)")
+                            text: DaemonClient.shortcutStatusMessage.length > 0 ? DaemonClient.shortcutStatusMessage :
+                                                                                  qsTr("Registered via Desktop Portal (Ctrl+Shift+Space)")
                             variant: "caption"
-                            customColor: DictationCoordinator.shortcutAvailable ? Theme.colorSuccess : (
-                                                                                      DictationCoordinator.shortcutSupported
-                                                                                      ? Theme.colorWarning :
-                                                                                        Theme.textSecondary)
+                            customColor: DaemonClient.shortcutAvailable ? Theme.colorSuccess : (
+                                                                              DaemonClient.shortcutSupported
+                                                                              ? Theme.colorWarning :
+                                                                                Theme.textSecondary)
                             Layout.fillWidth: true
                             wrapMode: Text.WordWrap
                         }

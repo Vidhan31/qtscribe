@@ -4,20 +4,23 @@
 
 #include <QByteArray>
 #include <QObject>
+#include <QPointer>
 #include <QString>
 
 #include <cstdint>
+#include <memory>
 
 class AudioRecorder;
+class AbstractCloudSttClient;
 class AbstractLlmClient;
 class AbstractTextInjector;
-class DaemonConnector;
 class GlobalShortcutManager;
-class WhisperSttClient;
+class SettingsManager;
+class HistoryRepository;
+class SystemService;
 
 class DictationCoordinator : public QObject {
     Q_OBJECT
-    Q_CLASSINFO("D-Bus Interface", "io.github.qtscribe.SpeechService")
 
     Q_PROPERTY(TranscriptionBackend activeBackend READ activeBackend WRITE setActiveBackend NOTIFY activeBackendChanged FINAL)
     Q_PROPERTY(RecordingMode recordingMode READ recordingMode WRITE setRecordingMode NOTIFY recordingModeChanged FINAL)
@@ -34,24 +37,11 @@ class DictationCoordinator : public QObject {
     Q_PROPERTY(bool autoSwitchOffline READ autoSwitchOffline WRITE setAutoSwitchOffline NOTIFY autoSwitchOfflineChanged FINAL)
     Q_PROPERTY(bool clientWindowFocused READ clientWindowFocused WRITE setClientWindowFocused NOTIFY clientWindowFocusedChanged FINAL)
 
-    Q_PROPERTY(bool pushToTalkSupported READ pushToTalkSupported NOTIFY shortcutStatusChanged FINAL)
-    Q_PROPERTY(bool shortcutAvailable READ shortcutAvailable NOTIFY shortcutStatusChanged FINAL)
-    Q_PROPERTY(bool shortcutSupported READ shortcutSupported NOTIFY shortcutStatusChanged FINAL)
-    Q_PROPERTY(QString shortcutStatusMessage READ shortcutStatusMessage NOTIFY shortcutStatusChanged FINAL)
-
-    Q_PROPERTY(bool directTypingConnected READ directTypingConnected NOTIFY directTypingStatusChanged FINAL)
-    Q_PROPERTY(bool directTypingHasFatalError READ directTypingHasFatalError NOTIFY directTypingStatusChanged FINAL)
-    Q_PROPERTY(QString directTypingFatalErrorMessage READ directTypingFatalErrorMessage NOTIFY directTypingStatusChanged FINAL)
-    Q_PROPERTY(QString directTypingStatus READ directTypingStatus NOTIFY directTypingStatusChanged FINAL)
-
-    Q_PROPERTY(bool isModelLoaded READ isModelLoaded NOTIFY modelStatusChanged FINAL)
-    Q_PROPERTY(bool isModelBusy READ isModelBusy NOTIFY modelStatusChanged FINAL)
-    Q_PROPERTY(QString loadedModelPath READ loadedModelPath NOTIFY modelStatusChanged FINAL)
-    Q_PROPERTY(QString modelPath READ modelPath NOTIFY modelStatusChanged FINAL)
-    Q_PROPERTY(QString modelFileName READ modelFileName NOTIFY modelStatusChanged FINAL)
-    Q_PROPERTY(QString computeDevice READ computeDevice NOTIFY computeDeviceChanged FINAL)
-    Q_PROPERTY(bool isVulkanSupported READ isVulkanSupported CONSTANT FINAL)
-    Q_PROPERTY(bool isModelInstalled READ isModelInstalled NOTIFY modelStatusChanged FINAL)
+    Q_PROPERTY(bool cloudApiKeySet READ cloudApiKeySet NOTIFY cloudStatusChanged FINAL)
+    Q_PROPERTY(bool cloudApiKeyInvalid READ cloudApiKeyInvalid NOTIFY cloudStatusChanged FINAL)
+    Q_PROPERTY(bool cloudRateLimited READ cloudRateLimited NOTIFY cloudStatusChanged FINAL)
+    Q_PROPERTY(int cloudRetrySecondsRemaining READ cloudRetrySecondsRemaining NOTIFY cloudStatusChanged FINAL)
+    Q_PROPERTY(QString cloudLastError READ cloudLastError NOTIFY cloudStatusChanged FINAL)
 
 public:
     // NOLINTNEXTLINE(performance-enum-size) QML-registered enums need int backing for qmlcachegen AOT
@@ -66,21 +56,30 @@ public:
     enum class RecordingMode { Toggle, PushToTalk };
     Q_ENUM(RecordingMode)
 
-public:
     explicit DictationCoordinator(QObject* parent = nullptr);
-    ~DictationCoordinator() override = default;
+    ~DictationCoordinator() override;
 
     void setAudioRecorder(AudioRecorder* recorder);
     void setSttEngine(AbstractSttClient* engine);
     [[nodiscard]] AbstractSttClient* sttEngine() const noexcept;
     [[nodiscard]] AbstractSttClient* activeSttClient() const noexcept;
 
+    void setCloudClient(AbstractCloudSttClient* client);
+    [[nodiscard]] AbstractCloudSttClient* cloudClient() const noexcept;
+
     void setLlmClient(AbstractLlmClient* llmClient);
     void setShortcutManager(GlobalShortcutManager* mgr);
     void setTextInjector(AbstractTextInjector* injector);
     [[nodiscard]] AbstractTextInjector* textInjector() const noexcept;
-    void setDaemonConnector(DaemonConnector* connector);
-    [[nodiscard]] DaemonConnector* daemonConnector() const noexcept;
+
+    void setSystemService(SystemService* systemService);
+    [[nodiscard]] SystemService* systemService() const noexcept;
+
+    void setSettingsManager(SettingsManager* settings);
+    [[nodiscard]] SettingsManager* settingsManager() const noexcept;
+
+    void setHistoryRepository(HistoryRepository* repo);
+    [[nodiscard]] HistoryRepository* historyRepository();
 
     [[nodiscard]] TranscriptionBackend activeBackend() const;
     [[nodiscard]] bool autoSwitchOffline() const;
@@ -98,31 +97,17 @@ public:
     [[nodiscard]] QString lastTranscription() const;
     [[nodiscard]] bool clientWindowFocused() const noexcept;
 
-    [[nodiscard]] bool pushToTalkSupported() const noexcept;
-    [[nodiscard]] bool shortcutAvailable() const noexcept;
-    [[nodiscard]] bool shortcutSupported() const noexcept;
-    [[nodiscard]] QString shortcutStatusMessage() const;
-
-    [[nodiscard]] bool directTypingConnected() const noexcept;
-    [[nodiscard]] bool directTypingHasFatalError() const noexcept;
-    [[nodiscard]] QString directTypingFatalErrorMessage() const;
-    [[nodiscard]] QString directTypingStatus() const;
-
-    [[nodiscard]] bool isModelLoaded() const;
-    [[nodiscard]] bool isModelBusy() const;
-    [[nodiscard]] QString loadedModelPath() const;
-    [[nodiscard]] QString modelPath() const;
-    [[nodiscard]] QString modelFileName() const;
-    [[nodiscard]] QString computeDevice() const;
-    [[nodiscard]] bool isVulkanSupported() const;
-    [[nodiscard]] bool isModelInstalled() const;
+    [[nodiscard]] bool cloudApiKeySet() const;
+    [[nodiscard]] bool cloudApiKeyInvalid() const;
+    [[nodiscard]] bool cloudRateLimited() const;
+    [[nodiscard]] int cloudRetrySecondsRemaining() const;
+    [[nodiscard]] QString cloudLastError() const;
 
     [[nodiscard]] static QString historyFilePath();
     static void removeHistoryFile();
 
     void loadSettings();
 
-public slots:
     void initialize();
     void reloadSettings();
     void setActiveBackend(TranscriptionBackend backend, bool persistSettings = true);
@@ -141,18 +126,6 @@ public slots:
     void clearError();
     void clearHistory();
 
-    void showWindow();
-    void quitApp();
-    void navigateToSection(const QString& section);
-
-    void testDirectTyping();
-    void restartDirectTyping();
-    void stopDirectTyping();
-
-    void loadModel(const QString& customPath = QString());
-    void unloadModel();
-    void checkModelStatus();
-
 signals:
     void activeBackendChanged();
     void recordingModeChanged();
@@ -167,21 +140,16 @@ signals:
     void lastTranscriptionChanged();
     void autoSwitchOfflineChanged();
     void clientWindowFocusedChanged();
-    void shortcutStatusChanged();
-    void directTypingStatusChanged();
-    void modelStatusChanged();
-    void computeDeviceChanged();
+    void cloudStatusChanged();
 
     void transcriptionFinished(const QString& text);
     void historyCleared();
+    void historyChanged();
     void errorOccurred(const QString& error);
-    void requestShowWindow();
-    void requestNavigate(const QString& section);
-    void requestQuitApp();
     void maxDurationWarningTriggered();
     void llmFallbackWarningTriggered(const QString& warning);
 
-private slots:
+private:
     void onRecordingFinished(const QByteArray& wavData);
     void onMaxDurationReached();
     void onSttTranscriptionReady(const QString& text);
@@ -192,21 +160,22 @@ private slots:
     void onShortcutDeactivated(const QString& shortcutId);
     void updateCoordinatorHealth();
 
-private:
     void setState(DictationState state);
     void setStatusMessage(const QString& msg);
     void setLastError(const QString& error);
     void completeTranscription(const QString& text);
     void finishTranscriptionAndInject(const QString& text);
 
-    [[nodiscard]] WhisperSttClient* whisperClient() const noexcept;
-
     AudioRecorder* m_recorder = nullptr;
     AbstractSttClient* m_sttEngine = nullptr;
+    QPointer<AbstractCloudSttClient> m_cloudClient;
     AbstractLlmClient* m_llmClient = nullptr;
     GlobalShortcutManager* m_shortcutMgr = nullptr;
     AbstractTextInjector* m_injector = nullptr;
-    DaemonConnector* m_daemonConnector = nullptr;
+    SettingsManager* m_settingsManager = nullptr;
+    HistoryRepository* m_historyRepository = nullptr;
+    std::unique_ptr<HistoryRepository> m_ownedHistoryRepository;
+    SystemService* m_systemService = nullptr;
 
     TranscriptionBackend m_activeBackend = TranscriptionBackend::WhisperCpp;
     DictationState m_state = DictationState::Idle;
@@ -214,6 +183,7 @@ private:
     QString m_statusMessage;
     QString m_lastError;
     QString m_lastTranscription;
+    QString m_pendingRawText;
     QByteArray m_lastWavData;
 
     bool m_autoSwitchOffline = true;

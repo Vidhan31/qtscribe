@@ -36,7 +36,7 @@ GlobalShortcutManager::GlobalShortcutManager(QObject* parent)
     qDBusRegisterMetaType<PortalShortcut>();
     qDBusRegisterMetaType<ShortcutList>();
 
-    quint32 randVal = QRandomGenerator::global()->generate();
+    const quint32 randVal = QRandomGenerator::global()->generate();
     m_handleToken = u"stt_req_%1"_s.arg(randVal);
     m_sessionHandleToken = u"stt_sess_%1"_s.arg(randVal);
 
@@ -99,10 +99,10 @@ void GlobalShortcutManager::registerHostApp() {
         QDBusMessage::createMethodCall(u"org.freedesktop.portal.Desktop"_s, u"/org/freedesktop/portal/desktop"_s,
                                        u"org.freedesktop.host.portal.Registry"_s, u"Register"_s);
 
-    QVariantMap options;
+    const QVariantMap options;
     msg << kApplicationId << options;
 
-    QDBusMessage reply = QDBusConnection::sessionBus().call(msg);
+    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg);
     if (reply.type() == QDBusMessage::ErrorMessage) {
         qCDebug(lcShortcut) << "org.freedesktop.host.portal.Registry.Register:" << reply.errorMessage();
         if (reply.errorName().contains(u"UnknownInterface"_s) ||
@@ -111,7 +111,7 @@ void GlobalShortcutManager::registerHostApp() {
                 u"org.freedesktop.portal.Desktop"_s, u"/org/freedesktop/portal/desktop"_s,
                 u"org.freedesktop.portal.Registry"_s, u"Register"_s);
             fallbackMsg << kApplicationId << options;
-            QDBusMessage fallbackReply = QDBusConnection::sessionBus().call(fallbackMsg);
+            const QDBusMessage fallbackReply = QDBusConnection::sessionBus().call(fallbackMsg);
             if (fallbackReply.type() == QDBusMessage::ErrorMessage) {
                 qCDebug(lcShortcut) << "org.freedesktop.portal.Registry.Register fallback:"
                                     << fallbackReply.errorMessage();
@@ -157,7 +157,7 @@ void GlobalShortcutManager::createSession() {
 
     msg << options;
 
-    QDBusMessage reply = QDBusConnection::sessionBus().call(msg);
+    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg);
     if (reply.type() == QDBusMessage::ErrorMessage) {
         qWarning() << "GlobalShortcutManager: CreateSession failed:" << reply.errorMessage();
         const QString errMsg = reply.errorMessage();
@@ -182,7 +182,7 @@ void GlobalShortcutManager::createSession() {
         return;
     }
 
-    QDBusObjectPath requestPath = reply.arguments().first().value<QDBusObjectPath>();
+    const auto requestPath = reply.arguments().first().value<QDBusObjectPath>();
     qCDebug(lcShortcut) << "CreateSession DBus request path:" << requestPath.path();
 
     QDBusConnection::sessionBus().connect(u"org.freedesktop.portal.Desktop"_s, requestPath.path(),
@@ -200,7 +200,7 @@ void GlobalShortcutManager::onCreateSessionResponse(uint responseCode, const QVa
     }
 
     if (results.contains(u"session_handle"_s)) {
-        QString sessionStr = results.value(u"session_handle"_s).toString();
+        const QString sessionStr = results.value(u"session_handle"_s).toString();
         m_sessionHandle = QDBusObjectPath(sessionStr);
     } else {
         QString baseService = QDBusConnection::sessionBus().baseService();
@@ -230,14 +230,14 @@ void GlobalShortcutManager::bindShortcuts() {
     qCDebug(lcShortcut) << "Sending BindShortcuts request for Ctrl+Shift+Space...";
     setStatusMessage(u"Binding global shortcut (Ctrl+Shift+Space)..."_s);
 
-    quint32 randVal = QRandomGenerator::global()->generate();
-    QString bindReqToken = u"stt_bind_%1"_s.arg(randVal);
+    const quint32 randVal = QRandomGenerator::global()->generate();
+    const QString bindReqToken = u"stt_bind_%1"_s.arg(randVal);
 
     QDBusMessage msg =
         QDBusMessage::createMethodCall(u"org.freedesktop.portal.Desktop"_s, u"/org/freedesktop/portal/desktop"_s,
                                        u"org.freedesktop.portal.GlobalShortcuts"_s, u"BindShortcuts"_s);
 
-    ShortcutList shortcuts = {
+    const ShortcutList shortcuts = {
         PortalShortcut {.id = u"toggle-recording"_s,
                         .options = {{u"description"_s, u"Speech-to-text dictation (Toggle / Push-to-Talk)"_s},
                                     {u"preferred_trigger"_s, u"CTRL+SHIFT+space"_s}}}};
@@ -247,7 +247,7 @@ void GlobalShortcutManager::bindShortcuts() {
 
     msg << m_sessionHandle << QVariant::fromValue(shortcuts) << QString() << options;
 
-    QDBusMessage reply = QDBusConnection::sessionBus().call(msg);
+    const QDBusMessage reply = QDBusConnection::sessionBus().call(msg);
     if (reply.type() == QDBusMessage::ErrorMessage) {
         qWarning() << "GlobalShortcutManager: BindShortcuts failed:" << reply.errorMessage();
         setStatusMessage(u"Failed to bind global shortcut: %1"_s.arg(reply.errorMessage()));
@@ -256,7 +256,7 @@ void GlobalShortcutManager::bindShortcuts() {
     }
 
     if (!reply.arguments().isEmpty()) {
-        QDBusObjectPath requestPath = reply.arguments().first().value<QDBusObjectPath>();
+        const auto requestPath = reply.arguments().first().value<QDBusObjectPath>();
         qCDebug(lcShortcut) << "BindShortcuts request path:" << requestPath.path();
         QDBusConnection::sessionBus().connect(u"org.freedesktop.portal.Desktop"_s, requestPath.path(),
                                               u"org.freedesktop.portal.Request"_s, u"Response"_s, this,

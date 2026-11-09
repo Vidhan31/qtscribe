@@ -331,7 +331,7 @@ QString ModelDownloader::formatBytes(qint64 bytes) {
     if (bytes < 0) {
         return u"0 B"_s;
     }
-    const qreal b = static_cast<qreal>(bytes);
+    const auto b = static_cast<qreal>(bytes);
     if (b < 1024.0) {
         return QString::number(bytes) + u" B"_s;
     }

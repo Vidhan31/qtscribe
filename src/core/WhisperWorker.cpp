@@ -346,10 +346,10 @@ void WhisperWorker::transcribe(uint64_t requestId, const QByteArray& wavData, co
 
     const int sampleCount = static_cast<int>(pcmf32.size());
     qCDebug(lcSpeech) << "WhisperWorker: Running inference for request" << requestId << "on" << sampleCount
-                      << "samples (~" << (sampleCount / 16000.0f) << "s of audio) with" << wparams.n_threads
+                      << "samples (~" << (sampleCount / 16000.0F) << "s of audio) with" << wparams.n_threads
                       << "threads (lang:" << wparams.language << ")";
 
-    int ret = whisper_full(m_ctx, wparams, pcmf32.data(), static_cast<int>(pcmf32.size()));
+    const int ret = whisper_full(m_ctx, wparams, pcmf32.data(), static_cast<int>(pcmf32.size()));
 
     if (isAborted(requestId)) {
         qCDebug(lcSpeech) << "WhisperWorker: Transcription request" << requestId << "cancelled during/after inference";

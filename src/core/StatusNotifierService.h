@@ -11,6 +11,7 @@
 #include <QVariantMap>
 
 class DictationCoordinator;
+class SystemService;
 class StatusNotifierService;
 
 struct KDbusImageStruct {
@@ -20,7 +21,7 @@ struct KDbusImageStruct {
 };
 Q_DECLARE_METATYPE(KDbusImageStruct)
 
-typedef QList<KDbusImageStruct> KDbusImageVector;
+using KDbusImageVector = QList<KDbusImageStruct>;
 Q_DECLARE_METATYPE(KDbusImageVector)
 
 struct KDbusToolTipStruct {
@@ -43,7 +44,7 @@ struct DBusMenuItem {
     QVariantMap properties;
 };
 Q_DECLARE_METATYPE(DBusMenuItem)
-typedef QList<DBusMenuItem> DBusMenuItemList;
+using DBusMenuItemList = QList<DBusMenuItem>;
 Q_DECLARE_METATYPE(DBusMenuItemList)
 
 struct DBusMenuItemKeys {
@@ -51,7 +52,7 @@ struct DBusMenuItemKeys {
     QStringList keys;
 };
 Q_DECLARE_METATYPE(DBusMenuItemKeys)
-typedef QList<DBusMenuItemKeys> DBusMenuItemKeysList;
+using DBusMenuItemKeysList = QList<DBusMenuItemKeys>;
 Q_DECLARE_METATYPE(DBusMenuItemKeysList)
 
 QDBusArgument& operator<<(QDBusArgument& argument, const KDbusImageStruct& icon);
@@ -92,29 +93,22 @@ class StatusNotifierItemAdaptor : public QDBusAbstractAdaptor {
 public:
     explicit StatusNotifierItemAdaptor(StatusNotifierService* parent);
 
-    QString category() const;
-    QString id() const;
-    QString title() const;
-    QString status() const;
-    int windowId() const;
-    QString iconThemePath() const;
-    QDBusObjectPath menu() const;
-    bool itemIsMenu() const;
-    QString iconName() const;
-    KDbusImageVector iconPixmap() const;
-    QString overlayIconName() const;
-    KDbusImageVector overlayIconPixmap() const;
-    QString attentionIconName() const;
-    KDbusImageVector attentionIconPixmap() const;
-    QString attentionMovieName() const;
+    static QString category();
+    static QString id();
+    static QString title();
+    static QString status();
+    static int windowId();
+    static QString iconThemePath();
+    static QDBusObjectPath menu();
+    static bool itemIsMenu();
+    static QString iconName();
+    static KDbusImageVector iconPixmap();
+    static QString overlayIconName();
+    static KDbusImageVector overlayIconPixmap();
+    static QString attentionIconName();
+    static KDbusImageVector attentionIconPixmap();
+    static QString attentionMovieName();
     KDbusToolTipStruct toolTip() const;
-
-public Q_SLOTS:
-    void ContextMenu(int x, int y);
-    void Activate(int x, int y);
-    void SecondaryActivate(int x, int y);
-    void Scroll(int delta, const QString& orientation);
-    void ProvideXdgActivationToken(const QString& token);
 
 Q_SIGNALS:
     void NewTitle();
@@ -124,6 +118,13 @@ Q_SIGNALS:
     void NewToolTip();
     void NewStatus(const QString& status);
     void NewMenu();
+
+public Q_SLOTS:
+    static void ContextMenu(int x, int y);
+    void Activate(int x, int y);
+    static void SecondaryActivate(int x, int y);
+    static void Scroll(int delta, const QString& orientation);
+    static void ProvideXdgActivationToken(const QString& token);
 
 private:
     StatusNotifierService* m_service = nullptr;
@@ -138,22 +139,22 @@ class DBusMenuAdaptor : public QDBusAbstractAdaptor {
 public:
     explicit DBusMenuAdaptor(StatusNotifierService* parent);
 
-    uint version() const { return 3; }
-    QString status() const;
-
-public Q_SLOTS:
-    bool AboutToShow(int id);
-    void Event(int id, const QString& eventId, const QDBusVariant& data, uint timestamp);
-    QList<int> EventGroup(const QList<int>& ids, const QString& eventId, const QDBusVariant& data, uint timestamp);
-    bool AboutToShowGroup(const QList<int>& ids, QList<int>& updatesNeeded, QList<int>& idErrors);
-    QDBusVariant GetProperty(int id, const QString& name);
-    uint GetLayout(int parentId, int recursionDepth, const QStringList& propertyNames, DBusMenuLayoutItem& layout);
-    DBusMenuItemList GetGroupProperties(const QList<int>& ids, const QStringList& propertyNames);
+    static uint version() { return 3; }
+    static QString status();
 
 Q_SIGNALS:
     void ItemsPropertiesUpdated(const DBusMenuItemList& updatedProps, const DBusMenuItemKeysList& removedProps);
     void LayoutUpdated(uint revision, int parent);
     void ItemActivationRequested(int id, uint timestamp);
+
+public Q_SLOTS:
+    static bool AboutToShow(int id);
+    void Event(int id, const QString& eventId, const QDBusVariant& data, uint timestamp);
+    QList<int> EventGroup(const QList<int>& ids, const QString& eventId, const QDBusVariant& data, uint timestamp);
+    static bool AboutToShowGroup(const QList<int>& ids, QList<int>& updatesNeeded, QList<int>& idErrors);
+    static QDBusVariant GetProperty(int id, const QString& name);
+    uint GetLayout(int parentId, int recursionDepth, const QStringList& propertyNames, DBusMenuLayoutItem& layout);
+    static DBusMenuItemList GetGroupProperties(const QList<int>& ids, const QStringList& propertyNames);
 
 private:
     StatusNotifierService* m_service = nullptr;
@@ -166,23 +167,27 @@ public:
     explicit StatusNotifierService(QObject* parent = nullptr);
     ~StatusNotifierService() override;
 
-    bool registerController(DictationCoordinator* coordinator);
+    bool registerController(DictationCoordinator* coordinator, SystemService* systemService = nullptr);
     DictationCoordinator* controller() const { return m_coordinator; }
+    SystemService* systemService() const { return m_systemService; }
 
     QString serviceName() const { return m_serviceName; }
     bool isRegistered() const { return m_registered; }
     uint revision() const { return m_revision; }
 
-public Q_SLOTS:
-    void registerWithWatcher();
+    Q_INVOKABLE void registerWithWatcher();
 
-private Q_SLOTS:
-    void onRecordingChanged();
+signals:
+    void requestShowWindow();
+    void requestQuitApp();
 
 private:
+    void onRecordingChanged();
+
     static void registerMetaTypes();
 
     DictationCoordinator* m_coordinator = nullptr;
+    SystemService* m_systemService = nullptr;
     StatusNotifierItemAdaptor* m_sniAdaptor = nullptr;
     DBusMenuAdaptor* m_menuAdaptor = nullptr;
     QString m_serviceName;

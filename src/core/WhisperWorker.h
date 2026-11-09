@@ -21,7 +21,6 @@ public:
     bool isAborted(uint64_t requestId = 0) const;
     bool isLoadAborted(uint64_t loadRequestId = 0) const;
 
-public slots:
     void loadModel(uint64_t loadRequestId, const QString& modelPath, bool useGpu = true);
     void unloadModel(uint64_t unloadRequestId = 0);
     void transcribe(uint64_t requestId, const QByteArray& wavData, const QString& language = QString(),

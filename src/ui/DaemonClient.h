@@ -1,8 +1,10 @@
 #pragma once
 
-#include <QDBusConnection>
-#include <QDBusInterface>
-#include <QDBusServiceWatcher>
+#include "ModelClient.h"
+#include "SettingsClient.h"
+#include "SpeechClient.h"
+#include "SystemClient.h"
+
 #include <QObject>
 #include <QString>
 #include <QtQmlIntegration/qqmlintegration.h>
@@ -17,10 +19,11 @@ class DaemonClient : public QObject {
 
     Q_PROPERTY(bool connected READ isConnected NOTIFY connectedChanged FINAL)
 
-    Q_PROPERTY(int activeBackend READ activeBackend WRITE setActiveBackend NOTIFY activeBackendChanged FINAL)
-    Q_PROPERTY(int recordingMode READ recordingMode WRITE setRecordingMode NOTIFY recordingModeChanged FINAL)
-    Q_PROPERTY(int dictationState READ dictationState NOTIFY dictationStateChanged FINAL)
+    Q_PROPERTY(TranscriptionBackend activeBackend READ activeBackend WRITE setActiveBackend NOTIFY activeBackendChanged FINAL)
+    Q_PROPERTY(RecordingMode recordingMode READ recordingMode WRITE setRecordingMode NOTIFY recordingModeChanged FINAL)
+    Q_PROPERTY(DictationState dictationState READ dictationState NOTIFY dictationStateChanged FINAL)
     Q_PROPERTY(bool isBusy READ isBusy NOTIFY dictationStateChanged FINAL)
+    Q_PROPERTY(bool busy READ isBusy NOTIFY dictationStateChanged FINAL)
     Q_PROPERTY(bool canRecord READ canRecord NOTIFY canRecordChanged FINAL)
     Q_PROPERTY(qreal audioLevel READ audioLevel NOTIFY audioLevelChanged FINAL)
     Q_PROPERTY(QString statusMessage READ statusMessage NOTIFY statusMessageChanged FINAL)
@@ -35,11 +38,21 @@ class DaemonClient : public QObject {
     Q_PROPERTY(bool pushToTalkSupported READ pushToTalkSupported NOTIFY shortcutStatusChanged FINAL)
     Q_PROPERTY(bool shortcutAvailable READ shortcutAvailable NOTIFY shortcutStatusChanged FINAL)
     Q_PROPERTY(bool shortcutSupported READ shortcutSupported NOTIFY shortcutStatusChanged FINAL)
+    Q_PROPERTY(bool systemShortcutSupported READ shortcutSupported NOTIFY shortcutStatusChanged FINAL)
     Q_PROPERTY(QString shortcutStatusMessage READ shortcutStatusMessage NOTIFY shortcutStatusChanged FINAL)
+    Q_PROPERTY(QString systemShortcutStatus READ shortcutStatusMessage NOTIFY shortcutStatusChanged FINAL)
     Q_PROPERTY(bool systemShortcutHasIssue READ systemShortcutHasIssue NOTIFY shortcutStatusChanged FINAL)
+
+    Q_PROPERTY(bool textInjectionConnected READ textInjectionConnected NOTIFY textInjectionStatusChanged FINAL)
+    Q_PROPERTY(bool textInjectionHasFatalError READ textInjectionHasFatalError NOTIFY textInjectionStatusChanged FINAL)
+    Q_PROPERTY(bool textInjectionFatalError READ textInjectionHasFatalError NOTIFY textInjectionStatusChanged FINAL)
+    Q_PROPERTY(QString textInjectionFatalErrorMessage READ textInjectionFatalErrorMessage NOTIFY textInjectionStatusChanged FINAL)
+    Q_PROPERTY(QString textInjectionStatus READ textInjectionStatus NOTIFY textInjectionStatusChanged FINAL)
+    Q_PROPERTY(bool textInjectionHasIssue READ textInjectionHasIssue NOTIFY textInjectionStatusChanged FINAL)
 
     Q_PROPERTY(bool directTypingConnected READ directTypingConnected NOTIFY directTypingStatusChanged FINAL)
     Q_PROPERTY(bool directTypingHasFatalError READ directTypingHasFatalError NOTIFY directTypingStatusChanged FINAL)
+    Q_PROPERTY(bool directTypingFatalError READ directTypingHasFatalError NOTIFY directTypingStatusChanged FINAL)
     Q_PROPERTY(QString directTypingFatalErrorMessage READ directTypingFatalErrorMessage NOTIFY directTypingStatusChanged FINAL)
     Q_PROPERTY(QString directTypingStatus READ directTypingStatus NOTIFY directTypingStatusChanged FINAL)
     Q_PROPERTY(bool directTypingHasIssue READ directTypingHasIssue NOTIFY directTypingStatusChanged FINAL)
@@ -52,6 +65,24 @@ class DaemonClient : public QObject {
     Q_PROPERTY(QString computeDevice READ computeDevice NOTIFY computeDeviceChanged FINAL)
     Q_PROPERTY(bool isVulkanSupported READ isVulkanSupported NOTIFY vulkanSupportedChanged FINAL)
     Q_PROPERTY(bool isModelInstalled READ isModelInstalled NOTIFY modelStatusChanged FINAL)
+
+    Q_PROPERTY(bool microphoneAvailable READ microphoneAvailable NOTIFY microphoneStatusChanged FINAL)
+    Q_PROPERTY(bool microphoneTestActive READ microphoneTestActive NOTIFY microphoneTestChanged FINAL)
+    Q_PROPERTY(qreal microphoneTestLevel READ microphoneTestLevel NOTIFY microphoneTestLevelChanged FINAL)
+
+    Q_PROPERTY(bool cloudApiKeySet READ cloudApiKeySet NOTIFY cloudStatusChanged FINAL)
+    Q_PROPERTY(bool cloudApiKeyInvalid READ cloudApiKeyInvalid NOTIFY cloudStatusChanged FINAL)
+    Q_PROPERTY(bool cloudRateLimited READ cloudRateLimited NOTIFY cloudStatusChanged FINAL)
+    Q_PROPERTY(int cloudRetrySecondsRemaining READ cloudRetrySecondsRemaining NOTIFY cloudStatusChanged FINAL)
+    Q_PROPERTY(QString cloudLastError READ cloudLastError NOTIFY cloudStatusChanged FINAL)
+
+    Q_PROPERTY(QString modelCatalogJson READ modelCatalogJson NOTIFY modelCatalogChanged FINAL)
+    Q_PROPERTY(QString modelsDirectory READ modelsDirectory NOTIFY modelCatalogChanged FINAL)
+    Q_PROPERTY(bool modelDownloadingAny READ modelDownloadingAny NOTIFY modelCatalogChanged FINAL)
+    Q_PROPERTY(QString modelDownloadBytes READ modelDownloadBytes NOTIFY modelCatalogChanged FINAL)
+    Q_PROPERTY(QString modelCatalogLastError READ modelCatalogLastError NOTIFY modelCatalogChanged FINAL)
+    Q_PROPERTY(QString modelDiskSpace READ modelDiskSpace NOTIFY modelCatalogChanged FINAL)
+    Q_PROPERTY(QString historyJson READ historyJson NOTIFY historyChanged FINAL)
 
 public:
     // NOLINTNEXTLINE(performance-enum-size)
@@ -72,11 +103,15 @@ public:
     static DaemonClient* instance();
     static DaemonClient* create(QQmlEngine* qmlEngine, QJSEngine* jsEngine);
 
-    [[nodiscard]] bool isConnected() const noexcept;
+    [[nodiscard]] SpeechClient* speechClient() const noexcept { return m_speechClient; }
+    [[nodiscard]] ModelClient* modelClient() const noexcept { return m_modelClient; }
+    [[nodiscard]] SystemClient* systemClient() const noexcept { return m_systemClient; }
+    [[nodiscard]] SettingsClient* settingsClient() const noexcept { return m_settingsClient; }
 
-    [[nodiscard]] int activeBackend() const noexcept;
-    [[nodiscard]] int recordingMode() const noexcept;
-    [[nodiscard]] int dictationState() const noexcept;
+    [[nodiscard]] bool isConnected() const noexcept;
+    [[nodiscard]] TranscriptionBackend activeBackend() const noexcept;
+    [[nodiscard]] RecordingMode recordingMode() const noexcept;
+    [[nodiscard]] DictationState dictationState() const noexcept;
     [[nodiscard]] bool isBusy() const noexcept;
     [[nodiscard]] bool canRecord() const noexcept;
     [[nodiscard]] qreal audioLevel() const noexcept;
@@ -95,6 +130,12 @@ public:
     [[nodiscard]] QString shortcutStatusMessage() const;
     [[nodiscard]] bool systemShortcutHasIssue() const noexcept;
 
+    [[nodiscard]] bool textInjectionConnected() const noexcept;
+    [[nodiscard]] bool textInjectionHasFatalError() const noexcept;
+    [[nodiscard]] QString textInjectionFatalErrorMessage() const;
+    [[nodiscard]] QString textInjectionStatus() const;
+    [[nodiscard]] bool textInjectionHasIssue() const noexcept;
+
     [[nodiscard]] bool directTypingConnected() const noexcept;
     [[nodiscard]] bool directTypingHasFatalError() const noexcept;
     [[nodiscard]] QString directTypingFatalErrorMessage() const;
@@ -110,33 +151,26 @@ public:
     [[nodiscard]] bool isVulkanSupported() const noexcept;
     [[nodiscard]] bool isModelInstalled() const noexcept;
 
-public slots:
-    void setActiveBackend(int backend, bool persistSettings = true);
-    void setRecordingMode(int mode);
-    void setAutoSwitchOffline(bool enable);
-    void setClientWindowFocused(bool focused);
+    [[nodiscard]] bool microphoneAvailable() const noexcept;
+    [[nodiscard]] bool microphoneTestActive() const noexcept;
+    [[nodiscard]] qreal microphoneTestLevel() const noexcept;
 
-    void startRecording();
-    void stopRecording();
-    void toggleRecording();
-    void cancelDictation();
-    void retryTranscription();
-    void clearLastTranscription();
-    void clearError();
-    void clearHistory();
-    void reloadSettings();
+    [[nodiscard]] bool cloudApiKeySet() const noexcept;
+    [[nodiscard]] bool cloudApiKeyInvalid() const noexcept;
+    [[nodiscard]] bool cloudRateLimited() const noexcept;
+    [[nodiscard]] int cloudRetrySecondsRemaining() const noexcept;
+    [[nodiscard]] QString cloudLastError() const;
 
-    void testDirectTyping();
-    void restartDirectTyping();
-    void stopDirectTyping();
+    [[nodiscard]] QString modelCatalogJson() const;
+    [[nodiscard]] QString modelsDirectory() const;
+    [[nodiscard]] bool modelDownloadingAny() const noexcept;
+    [[nodiscard]] QString modelDownloadBytes() const;
+    [[nodiscard]] QString modelCatalogLastError() const;
+    [[nodiscard]] QString modelDiskSpace() const;
+    [[nodiscard]] QString historyJson() const;
 
-    void showWindow();
-    void quitApp();
-    void navigateToSection(const QString& section);
-
-    void loadModel(const QString& customPath = QString());
-    void unloadModel();
-    void checkModelStatus();
+    static bool isServiceRunning();
+    static bool sendRemoteCommand(const QString& command);
 
 signals:
     void connectedChanged();
@@ -154,61 +188,78 @@ signals:
     void autoSwitchOfflineChanged();
     void clientWindowFocusedChanged();
     void shortcutStatusChanged();
+    void textInjectionStatusChanged();
     void directTypingStatusChanged();
     void modelStatusChanged();
     void computeDeviceChanged();
     void vulkanSupportedChanged();
+    void microphoneStatusChanged();
+    void microphoneTestChanged();
+    void microphoneTestLevelChanged(qreal level);
+    void cloudStatusChanged();
+    void modelCatalogChanged();
 
     void transcriptionFinished(const QString& text);
     void historyCleared();
+    void historyChanged();
     void errorOccurred(const QString& error);
     void requestShowWindow();
     void requestNavigate(const QString& section);
     void requestQuitApp();
 
-private slots:
-    void onServiceRegistered(const QString& serviceName);
-    void onServiceUnregistered(const QString& serviceName);
-    void syncFromDaemon();
-    void onAudioLevelChanged(double level);
-    void onTranscriptionFinished(const QString& text);
+public slots:
+    void setActiveBackend(TranscriptionBackend backend, bool persistSettings = true);
+    void setActiveBackend(int backend, bool persistSettings = true);
+    void setRecordingMode(RecordingMode mode);
+    void setRecordingMode(int mode);
+    void setAutoSwitchOffline(bool enable);
+    void setClientWindowFocused(bool focused);
+    void toggleRecording();
+    void startRecording();
+    void stopRecording();
+    void cancelDictation();
+    void retryTranscription();
+    void clearLastTranscription();
+    void clearError();
+    void clearHistory();
+    void reloadSettings();
+
+    void testTextInjection();
+    void restartTextInjection();
+    void stopTextInjection();
+
+    void testDirectTyping();
+    void restartDirectTyping();
+    void stopDirectTyping();
+
+    void showWindow();
+    void quitApp();
+    void navigateToSection(const QString& section);
+
+    void loadModel(const QString& customPath = QString());
+    void unloadModel();
+    void checkModelStatus();
+
+    void startMicrophoneTest();
+    void stopMicrophoneTest();
+    void playStartSound();
+    void playStopSound();
+
+    void selectModel(const QString& modelId);
+    void startModelDownload(const QString& modelId);
+    void cancelModelDownload(const QString& modelId);
+    void deleteModel(const QString& modelId);
+    void refreshModelCatalog();
+    void checkModelDiskSpace();
 
 private:
-    void setupDBusConnections();
+    Q_INVOKABLE void onServiceRegistered(const QString& serviceName);
+    Q_INVOKABLE void onServiceUnregistered(const QString& serviceName);
 
     static inline DaemonClient* s_instance = nullptr;
 
-    QDBusServiceWatcher* m_watcher = nullptr;
-    QDBusInterface* m_interface = nullptr;
-    bool m_connected = false;
-
-    int m_activeBackend = 0;
-    int m_recordingMode = 0;
-    int m_dictationState = 0;
-    bool m_canRecord = false;
-    bool m_autoSwitchOffline = true;
-    bool m_clientWindowFocused = false;
-    qreal m_audioLevel = 0.0;
-    QString m_statusMessage;
-    QString m_lastError;
-    QString m_lastTranscription;
-
-    bool m_pushToTalkSupported = true;
-    bool m_shortcutAvailable = true;
-    bool m_shortcutSupported = true;
-    QString m_shortcutStatusMessage;
-
-    bool m_directTypingConnected = false;
-    bool m_directTypingHasFatalError = false;
-    QString m_directTypingFatalErrorMessage;
-    QString m_directTypingStatus;
-
-    bool m_isModelLoaded = false;
-    bool m_isModelBusy = false;
-    QString m_loadedModelPath;
-    QString m_modelPath;
-    QString m_modelFileName;
-    QString m_computeDevice;
-    bool m_isVulkanSupported = false;
-    bool m_isModelInstalled = false;
+    SpeechClient* m_speechClient = nullptr;
+    ModelClient* m_modelClient = nullptr;
+    SystemClient* m_systemClient = nullptr;
+    SettingsClient* m_settingsClient = nullptr;
 };

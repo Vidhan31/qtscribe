@@ -41,7 +41,7 @@ UinputDevice::UinputDevice(int uinputFd)
     libevdev_enable_event_code(m_dev, EV_KEY, KEY_RIGHTSHIFT, nullptr);
     libevdev_enable_event_code(m_dev, EV_KEY, KEY_V, nullptr);
 
-    int err = libevdev_uinput_create_from_device(m_dev, m_fd, &m_uidev);
+    const int err = libevdev_uinput_create_from_device(m_dev, m_fd, &m_uidev);
     if (err != 0) {
         throw std::runtime_error(std::string("libevdev_uinput_create_from_device failed: ") + std::strerror(-err));
     }
@@ -71,7 +71,7 @@ bool UinputDevice::emitEvent(int type, int code, int value) {
         return false;
     }
 
-    int err = libevdev_uinput_write_event(m_uidev, type, code, value);
+    const int err = libevdev_uinput_write_event(m_uidev, type, code, value);
     if (err != 0) {
         KEYINJECTORD_LOG_ERROR("write_event(type=%d, code=%d, val=%d) failed: %s", type, code, value,
                                std::strerror(-err));

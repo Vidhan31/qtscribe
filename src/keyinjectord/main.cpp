@@ -7,6 +7,7 @@
 #include "launcher_auth.h"
 
 #include <cerrno>
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -15,7 +16,6 @@
 
 #include <sys/prctl.h>
 #include <fcntl.h>
-#include <signal.h>
 #include <unistd.h>
 
 namespace {
@@ -95,7 +95,7 @@ int main(int argc, char* argv[]) {
     int uinputFd;
     try {
         KEYINJECTORD_LOG_DEBUG("Opening /dev/uinput with capability...");
-        keyinjectord::CapabilityGuard capGuard;
+        const keyinjectord::CapabilityGuard capGuard;
 
         uinputFd = open("/dev/uinput", O_WRONLY | O_NONBLOCK | O_CLOEXEC);
         if (uinputFd < 0) {

@@ -1,24 +1,20 @@
 #pragma once
 
-#include "AbstractSttClient.h"
+#include "AbstractCloudSttClient.h"
 
 #include <QByteArray>
 #include <QPointer>
 #include <QString>
-#include <QtQmlIntegration/qqmlintegration.h>
 
 class ApiKeyStore;
 class QNetworkAccessManager;
 class QNetworkReply;
 class QTimer;
-class QQmlEngine;
-class QJSEngine;
+class SettingsManager;
 struct CloudApiResponse;
 
-class GeminiSttClient : public AbstractSttClient {
+class GeminiSttClient : public AbstractCloudSttClient {
     Q_OBJECT
-    QML_ELEMENT
-    QML_SINGLETON
 
     Q_PROPERTY(QString apiKey READ apiKey WRITE setApiKey NOTIFY apiKeyChanged FINAL)
     Q_PROPERTY(QString selectedModel READ selectedModel WRITE setSelectedModel NOTIFY selectedModelChanged FINAL)
@@ -30,11 +26,13 @@ public:
     ~GeminiSttClient() override;
 
     static GeminiSttClient* instance();
-    static GeminiSttClient* create(QQmlEngine* qmlEngine, QJSEngine* jsEngine);
 
     void setKeyStore(ApiKeyStore* store);
     ApiKeyStore* keyStore() const;
     void setNetworkAccessManager(QNetworkAccessManager* nam);
+
+    void setSettingsManager(SettingsManager* settings);
+    [[nodiscard]] SettingsManager* settingsManager() const noexcept;
 
     QString apiKey() const;
     void setApiKey(const QString& key);
@@ -75,15 +73,14 @@ signals:
     void modeChanged();
     void customVocabularyChanged();
 
-private slots:
+private:
     void onApiKeySetChanged();
 
-private:
     void sendTranscribeRequest();
     void handleApiResponse(const CloudApiResponse& res);
-    ErrorCategory classifyError(const CloudApiResponse& res, QString& outMessage) const;
+    static ErrorCategory classifyError(const CloudApiResponse& res, QString& outMessage);
     bool shouldRetry(const CloudApiResponse& res) const;
-    int calculateRetryDelayMs(const CloudApiResponse& res) const;
+    static int calculateRetryDelayMs(const CloudApiResponse& res);
 
     void setBusy(bool busy);
     void setLastError(const QString& error, ErrorCategory category = ErrorCategory::GeneralError);
@@ -91,6 +88,7 @@ private:
     void setRetrySecondsRemaining(int seconds);
 
     ApiKeyStore* m_keyStore = nullptr;
+    SettingsManager* m_settingsManager = nullptr;
     bool m_ownsKeyStore = false;
 
     QNetworkAccessManager* m_nam = nullptr;
@@ -112,7 +110,7 @@ private:
     static constexpr int kMaxRetries = 1;
     static constexpr int kDefaultDelayMs = 1000;
     static constexpr int kMaxTransientRetryAfterSec = 3;
-    inline static constexpr QStringView kDefaultModel = u"gemini-3.5-transcribe";
-    inline static constexpr QStringView kDefaultMode = u"smart";
-    inline static constexpr QStringView kApiEndpoint = u"https://generativelanguage.googleapis.com/v1beta/interactions";
+    static constexpr QStringView kDefaultModel = u"gemini-3.5-transcribe";
+    static constexpr QStringView kDefaultMode = u"smart";
+    static constexpr QStringView kApiEndpoint = u"https://generativelanguage.googleapis.com/v1beta/interactions";
 };

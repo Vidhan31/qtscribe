@@ -125,30 +125,46 @@ QString SystemHealthMonitor::systemShortcutStatus() const {
     return m_shortcutMgr ? m_shortcutMgr->statusMessage() : QString();
 }
 
-bool SystemHealthMonitor::directTypingHasIssue() const {
+bool SystemHealthMonitor::textInjectionHasIssue() const {
     return m_connector && (!m_connector->isConnected() || m_connector->hasFatalError());
 }
 
-bool SystemHealthMonitor::directTypingConnected() const {
+bool SystemHealthMonitor::directTypingHasIssue() const {
+    return textInjectionHasIssue();
+}
+
+bool SystemHealthMonitor::textInjectionConnected() const {
     return m_connector && m_connector->isConnected();
 }
 
-bool SystemHealthMonitor::directTypingFatalError() const {
+bool SystemHealthMonitor::directTypingConnected() const {
+    return textInjectionConnected();
+}
+
+bool SystemHealthMonitor::textInjectionFatalError() const {
     return m_connector && m_connector->hasFatalError();
 }
 
-QString SystemHealthMonitor::directTypingStatus() const {
+bool SystemHealthMonitor::directTypingFatalError() const {
+    return textInjectionFatalError();
+}
+
+QString SystemHealthMonitor::textInjectionStatus() const {
     if (!m_connector) {
-        return QString();
+        return {};
     }
     if (m_connector->hasFatalError()) {
-        return m_connector->fatalErrorMessage().isEmpty() ? tr("Direct Typing Error")
+        return m_connector->fatalErrorMessage().isEmpty() ? tr("Text Injection Error")
                                                           : m_connector->fatalErrorMessage();
     }
     if (!m_connector->isConnected()) {
-        return tr("Direct Typing Not Connected");
+        return tr("Text Injection Not Connected");
     }
-    return QString();
+    return {};
+}
+
+QString SystemHealthMonitor::directTypingStatus() const {
+    return textInjectionStatus();
 }
 
 bool SystemHealthMonitor::pushToTalkSupported() const {
@@ -170,8 +186,8 @@ bool SystemHealthMonitor::computeNetworkOnline() const {
     }
 
     if (QDBusConnection::systemBus().isConnected()) {
-        QDBusInterface nm(u"org.freedesktop.NetworkManager"_s, u"/org/freedesktop/NetworkManager"_s,
-                          u"org.freedesktop.NetworkManager"_s, QDBusConnection::systemBus());
+        const QDBusInterface nm(u"org.freedesktop.NetworkManager"_s, u"/org/freedesktop/NetworkManager"_s,
+                                u"org.freedesktop.NetworkManager"_s, QDBusConnection::systemBus());
         if (nm.isValid()) {
             const bool nmNetworking = nm.property("NetworkingEnabled").toBool();
             const uint nmState = nm.property("State").toUInt();

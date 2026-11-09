@@ -64,7 +64,7 @@ bool SocketCredentials::validatePeerIdentity(const struct ucred& peerCreds, Auth
         return setResult(outResult, AuthResult::UidMismatch);
     }
 
-    pid_t parentPid = getppid();
+    const pid_t parentPid = getppid();
     if (peerCreds.pid != parentPid && peerCreds.pid != getpid()) {
         KEYINJECTORD_LOG_ERROR("Launcher authorization failed: peer PID %d does not match parent PID %d", peerCreds.pid,
                                parentPid);

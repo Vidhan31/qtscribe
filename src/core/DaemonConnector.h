@@ -35,12 +35,11 @@ signals:
     void lastErrorChanged();
     void statusMessageChanged();
 
-private slots:
+private:
     void onConnected();
     void onDisconnected();
     void onErrorOccurred(QLocalSocket::LocalSocketError error);
 
-private:
     void setLastError(const QString& error);
     void setStatusMessage(const QString& message);
     void setFatalError(bool fatal, const QString& msg = QString());

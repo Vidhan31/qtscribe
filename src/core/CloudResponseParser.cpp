@@ -53,7 +53,9 @@ QString extractApiErrorMessage(const QByteArray& responseBody, const QString& de
 
 CloudApiResponse parseReply(QNetworkReply* reply, qint64 latencyMs) {
     if (!reply) {
-        return CloudApiResponse {.errorMessage = u"Null network reply"_s};
+        CloudApiResponse response;
+        response.errorMessage = u"Null network reply"_s;
+        return response;
     }
 
     const int httpStatus = reply->attribute(QNetworkRequest::HttpStatusCodeAttribute).toInt();

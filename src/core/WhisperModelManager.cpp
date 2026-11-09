@@ -2,6 +2,9 @@
 
 #include "LoggingCategories.h"
 
+#include "common/SettingsKeys.h"
+#include "SettingsManager.h"
+
 #include <QDir>
 #include <QFile>
 #include <QFileInfo>
@@ -45,19 +48,35 @@ WhisperModelManager::WhisperModelManager(std::unique_ptr<ModelDownloader> downlo
     checkDiskSpace();
     setupDownloaderConnections();
 
-    QSettings settings;
-    m_selectedModelId = settings.value(u"Whisper/SelectedModel"_s, QString()).toString();
-    if (m_selectedModelId.isEmpty() || !isModelInstalled(m_selectedModelId)) {
-        const QString installedId = firstInstalledModelId();
-        if (!installedId.isEmpty()) {
-            m_selectedModelId = installedId;
-        } else if (m_selectedModelId.isEmpty()) {
-            m_selectedModelId = kDefaultSelectedModel;
-        }
+    if (auto* inst = SettingsManager::instance()) {
+        setSettingsManager(inst);
+    } else {
+        loadSettings();
     }
-    if (findModelIndex(m_selectedModelId) < 0 && !m_models.isEmpty()) {
-        m_selectedModelId = m_models.first().id;
+}
+
+void WhisperModelManager::setSettingsManager(SettingsManager* settings) {
+    if (m_settingsManager == settings) {
+        return;
     }
+    if (m_settingsManager) {
+        disconnect(m_settingsManager, nullptr, this, nullptr);
+    }
+    m_settingsManager = settings;
+    if (m_settingsManager) {
+        connect(m_settingsManager, &SettingsManager::whisperConfigChanged, this,
+                [this](const SettingsManager::WhisperConfig& config) {
+                    if (!config.selectedModel.isEmpty() && m_selectedModelId != config.selectedModel &&
+                        isModelInstalled(config.selectedModel)) {
+                        setSelectedModelId(config.selectedModel);
+                    }
+                });
+    }
+    loadSettings();
+}
+
+SettingsManager* WhisperModelManager::settingsManager() const noexcept {
+    return m_settingsManager;
 }
 
 WhisperModelManager::~WhisperModelManager() {
@@ -76,7 +95,9 @@ void WhisperModelManager::initPresets() {
                           .sizeFormatted = u"~74 MiB"_s,
                           .memoryFormatted = u"~273 MB RAM/VRAM"_s,
                           .description =
-                              tr("Fastest English dictation with lowest resource usage and minimal latency.")},
+                              tr("Fastest English dictation with lowest resource usage and minimal latency."),
+                          .installedSizeFormatted = {},
+                          .speedFormatted = {}},
         WhisperModelItem {.id = u"tiny"_s,
                           .name = tr("Tiny (Multilingual)"),
                           .fileName = u"ggml-tiny.bin"_s,
@@ -85,7 +106,9 @@ void WhisperModelManager::initPresets() {
                           .sizeFormatted = u"~74 MiB"_s,
                           .memoryFormatted = u"~273 MB RAM/VRAM"_s,
                           .description =
-                              tr("Ultra-fast multilingual dictation across 99+ languages with minimal memory usage.")},
+                              tr("Ultra-fast multilingual dictation across 99+ languages with minimal memory usage."),
+                          .installedSizeFormatted = {},
+                          .speedFormatted = {}},
         WhisperModelItem {.id = u"base.en"_s,
                           .name = tr("Base (English)"),
                           .fileName = u"ggml-base.en.bin"_s,
@@ -94,7 +117,9 @@ void WhisperModelManager::initPresets() {
                           .sizeFormatted = u"~141 MiB"_s,
                           .memoryFormatted = u"~388 MB RAM/VRAM"_s,
                           .description =
-                              tr("Fast English transcription with improved accuracy over Tiny for general speech.")},
+                              tr("Fast English transcription with improved accuracy over Tiny for general speech."),
+                          .installedSizeFormatted = {},
+                          .speedFormatted = {}},
         WhisperModelItem {.id = u"base"_s,
                           .name = tr("Base (Multilingual)"),
                           .fileName = u"ggml-base.bin"_s,
@@ -103,7 +128,9 @@ void WhisperModelManager::initPresets() {
                           .sizeFormatted = u"~141 MiB"_s,
                           .memoryFormatted = u"~388 MB RAM/VRAM"_s,
                           .description =
-                              tr("Fast multilingual transcription with solid baseline recognition accuracy.")},
+                              tr("Fast multilingual transcription with solid baseline recognition accuracy."),
+                          .installedSizeFormatted = {},
+                          .speedFormatted = {}},
         WhisperModelItem {.id = u"small.en"_s,
                           .name = tr("Small (English)"),
                           .fileName = u"ggml-small.en.bin"_s,
@@ -112,7 +139,9 @@ void WhisperModelManager::initPresets() {
                           .sizeFormatted = u"~465 MiB"_s,
                           .memoryFormatted = u"~852 MB RAM/VRAM"_s,
                           .description =
-                              tr("High accuracy English transcription; recommended sweet spot for desktop dictation.")},
+                              tr("High accuracy English transcription; recommended sweet spot for desktop dictation."),
+                          .installedSizeFormatted = {},
+                          .speedFormatted = {}},
         WhisperModelItem {
             .id = u"small"_s,
             .name = tr("Small (Multilingual)"),
@@ -121,7 +150,9 @@ void WhisperModelManager::initPresets() {
             .sizeBytes = 487601967,
             .sizeFormatted = u"~465 MiB"_s,
             .memoryFormatted = u"~852 MB RAM/VRAM"_s,
-            .description = tr("High accuracy multilingual model; excellent balance of speed and recognition quality.")},
+            .description = tr("High accuracy multilingual model; excellent balance of speed and recognition quality."),
+            .installedSizeFormatted = {},
+            .speedFormatted = {}},
         WhisperModelItem {
             .id = u"medium.en"_s,
             .name = tr("Medium (English)"),
@@ -131,7 +162,9 @@ void WhisperModelManager::initPresets() {
             .sizeFormatted = u"~1.4 GiB"_s,
             .memoryFormatted = u"~2.1 GB RAM/VRAM"_s,
             .description =
-                tr("Near-professional English accuracy for complex vocabulary, technical terms, and accents.")},
+                tr("Near-professional English accuracy for complex vocabulary, technical terms, and accents."),
+            .installedSizeFormatted = {},
+            .speedFormatted = {}},
         WhisperModelItem {
             .id = u"medium"_s,
             .name = tr("Medium (Multilingual)"),
@@ -141,7 +174,9 @@ void WhisperModelManager::initPresets() {
             .sizeFormatted = u"~1.4 GiB"_s,
             .memoryFormatted = u"~2.1 GB RAM/VRAM"_s,
             .description =
-                tr("Professional-grade multilingual transcription across diverse accents and audio conditions.")},
+                tr("Professional-grade multilingual transcription across diverse accents and audio conditions."),
+            .installedSizeFormatted = {},
+            .speedFormatted = {}},
         WhisperModelItem {.id = u"large-v3-turbo"_s,
                           .name = tr("Large v3 Turbo (Multilingual)"),
                           .fileName = u"ggml-large-v3-turbo.bin"_s,
@@ -150,7 +185,9 @@ void WhisperModelManager::initPresets() {
                           .sizeFormatted = u"~1.5 GiB"_s,
                           .memoryFormatted = u"~2.3 GB RAM/VRAM"_s,
                           .description = tr("State-of-the-art multilingual accuracy with optimized 4-layer fast "
-                                            "decoder (up to 8x faster than Large v3).")},
+                                            "decoder (up to 8x faster than Large v3)."),
+                          .installedSizeFormatted = {},
+                          .speedFormatted = {}},
         WhisperModelItem {.id = u"large-v3"_s,
                           .name = tr("Large v3 (Multilingual)"),
                           .fileName = u"ggml-large-v3.bin"_s,
@@ -159,7 +196,9 @@ void WhisperModelManager::initPresets() {
                           .sizeFormatted = u"~2.9 GiB"_s,
                           .memoryFormatted = u"~3.9 GB RAM/VRAM"_s,
                           .description = tr("Maximum accuracy flagship Whisper model for challenging audio, background "
-                                            "noise, and rare dialects.")}};
+                                            "noise, and rare dialects."),
+                          .installedSizeFormatted = {},
+                          .speedFormatted = {}}};
 }
 
 void WhisperModelManager::setupDownloaderConnections() {
@@ -348,13 +387,12 @@ void WhisperModelManager::setSelectedModelId(const QString& id) {
         const QString oldId = m_selectedModelId;
         m_selectedModelId = id;
 
-        {
+        if (m_settingsManager) {
+            m_settingsManager->setWhisperSelectedModel(m_selectedModelId);
+        } else {
             QSettings settings;
-            settings.setValue(u"Whisper/SelectedModel"_s, m_selectedModelId);
+            settings.setValue(SettingsKeys::kWhisperSelectedModel.toString(), m_selectedModelId);
             settings.sync();
-            if (settings.status() != QSettings::NoError) {
-                qWarning() << "WhisperModelManager: Failed to save Whisper/SelectedModel:" << settings.status();
-            }
         }
 
         const int oldIdx = findModelIndex(oldId);
@@ -375,10 +413,32 @@ void WhisperModelManager::setSelectedModelId(const QString& id) {
 
 void WhisperModelManager::loadSettings() {
     refreshModelList();
-    QSettings settings;
-    const QString modelId = settings.value(u"Whisper/SelectedModel"_s, QString()).toString();
+    QString modelId;
+    if (m_settingsManager) {
+        modelId = m_settingsManager->whisperConfig().selectedModel;
+    } else {
+        const QSettings settings;
+        modelId = settings.value(SettingsKeys::kWhisperSelectedModel.toString(), QString()).toString();
+    }
+
+    if (modelId.isEmpty() || !isModelInstalled(modelId)) {
+        const QString installedId = firstInstalledModelId();
+        if (!installedId.isEmpty()) {
+            modelId = installedId;
+        } else if (modelId.isEmpty()) {
+            modelId = kDefaultSelectedModel;
+        }
+    }
+    if (findModelIndex(modelId) < 0 && !m_models.isEmpty()) {
+        modelId = m_models.first().id;
+    }
+
     if (!modelId.isEmpty() && isModelInstalled(modelId)) {
         setSelectedModelId(modelId);
+    } else {
+        m_selectedModelId = modelId;
+        emit selectedModelChanged();
+        emit modelStatusChanged();
     }
 }
 
@@ -399,12 +459,7 @@ bool WhisperModelManager::isSelectedModelInstalled() const {
 }
 
 bool WhisperModelManager::hasAnyModelInstalled() const {
-    for (const auto& item : m_models) {
-        if (item.isInstalled) {
-            return true;
-        }
-    }
-    return false;
+    return std::ranges::any_of(m_models, [](const auto& item) { return item.isInstalled; });
 }
 
 QString WhisperModelManager::firstInstalledModelId() const {
@@ -492,7 +547,7 @@ bool WhisperModelManager::startDownload(const QString& modelId) {
     const auto& modelItem = m_models[idx];
 
     const qint64 requiredSpace =
-        modelItem.sizeBytes > 0 ? (modelItem.sizeBytes + 50 * 1024 * 1024) : (100 * 1024 * 1024);
+        modelItem.sizeBytes > 0 ? (modelItem.sizeBytes + (50 * 1024 * 1024)) : (100 * 1024 * 1024);
     if (m_availableDiskSpace > 0 && m_availableDiskSpace < requiredSpace) {
         setLastError(tr("Insufficient disk space. %1 required, but only %2 available.")
                          .arg(formatBytes(requiredSpace), formatBytes(m_availableDiskSpace)));
@@ -611,7 +666,7 @@ void WhisperModelManager::checkDiskSpace() {
     }
 }
 
-void WhisperModelManager::cleanupOrphanedPartFiles() {
+void WhisperModelManager::cleanupOrphanedPartFiles() const {
     QDir dir(modelsDirectory());
     const QStringList partFiles = dir.entryList({u"*.part"_s}, QDir::Files);
     for (const QString& f : partFiles) {

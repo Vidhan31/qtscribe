@@ -3,7 +3,9 @@
 #include "ClipboardManager.h"
 #include "DaemonConnector.h"
 
+#include "common/SettingsKeys.h"
 #include "keyinjectord/protocol.h"
+#include "SettingsManager.h"
 
 #include <QDebug>
 #include <QSettings>
@@ -27,13 +29,45 @@ TextInjector::TextInjector(DaemonConnector* connector, ClipboardManager* clipboa
         doInjectText(text);
     });
 
+    if (auto* inst = SettingsManager::instance()) {
+        setSettingsManager(inst);
+    } else {
+        loadSettings();
+    }
+}
+
+void TextInjector::setSettingsManager(SettingsManager* settings) {
+    if (m_settingsManager == settings) {
+        return;
+    }
+    if (m_settingsManager) {
+        disconnect(m_settingsManager, nullptr, this, nullptr);
+    }
+    m_settingsManager = settings;
+    if (m_settingsManager) {
+        connect(m_settingsManager, &SettingsManager::textInjectorConfigChanged, this,
+                [this](const SettingsManager::TextInjectorConfig& config) {
+                    m_preventClipboardHistory = config.preventClipboardHistory;
+                    m_injectionDelay = config.injectionDelayMs;
+                });
+    }
     loadSettings();
 }
 
+SettingsManager* TextInjector::settingsManager() const noexcept {
+    return m_settingsManager;
+}
+
 void TextInjector::loadSettings() {
-    QSettings settings;
-    m_preventClipboardHistory = settings.value(u"Clipboard/PreventHistory"_s, true).toBool();
-    m_injectionDelay = settings.value(u"Typing/PreInjectionDelayMs"_s, 200).toInt();
+    if (m_settingsManager) {
+        const auto& config = m_settingsManager->textInjectorConfig();
+        m_preventClipboardHistory = config.preventClipboardHistory;
+        m_injectionDelay = config.injectionDelayMs;
+    } else {
+        const QSettings settings;
+        m_preventClipboardHistory = settings.value(SettingsKeys::kClipboardPreventHistory.toString(), true).toBool();
+        m_injectionDelay = settings.value(SettingsKeys::kTypingPreInjectionDelayMs.toString(), 200).toInt();
+    }
 }
 
 bool TextInjector::inject(const QString& text) {
@@ -70,13 +104,12 @@ void TextInjector::setInjectionDelay(int delayMs) {
     delayMs = std::clamp(delayMs, 0, 10000);
     if (m_injectionDelay != delayMs) {
         m_injectionDelay = delayMs;
-        {
+        if (m_settingsManager) {
+            m_settingsManager->setInjectionDelay(delayMs);
+        } else {
             QSettings settings;
-            settings.setValue(u"Typing/PreInjectionDelayMs"_s, delayMs);
+            settings.setValue(SettingsKeys::kTypingPreInjectionDelayMs.toString(), delayMs);
             settings.sync();
-            if (settings.status() != QSettings::NoError) {
-                qWarning() << "TextInjector: Failed to save Typing/PreInjectionDelayMs:" << settings.status();
-            }
         }
     }
 }
@@ -88,13 +121,12 @@ bool TextInjector::preventClipboardHistory() const noexcept {
 void TextInjector::setPreventClipboardHistory(bool prevent) {
     if (m_preventClipboardHistory != prevent) {
         m_preventClipboardHistory = prevent;
-        {
+        if (m_settingsManager) {
+            m_settingsManager->setPreventClipboardHistory(prevent);
+        } else {
             QSettings settings;
-            settings.setValue(u"Clipboard/PreventHistory"_s, prevent);
+            settings.setValue(SettingsKeys::kClipboardPreventHistory.toString(), prevent);
             settings.sync();
-            if (settings.status() != QSettings::NoError) {
-                qWarning() << "TextInjector: Failed to save Clipboard/PreventHistory:" << settings.status();
-            }
         }
     }
 }

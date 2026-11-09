@@ -3,21 +3,49 @@
 #include "GroqSttClient.h"
 #include "LoggingCategories.h"
 
+#include "common/SettingsKeys.h"
 #include "GeminiSttClient.h"
+#include "SettingsManager.h"
 
 #include <QSettings>
 
 using namespace Qt::StringLiterals;
 
-static inline CloudSttRouter* s_cloudRouterInstance = nullptr;
+namespace {
+CloudSttRouter* s_cloudRouterInstance = nullptr;
+} // namespace
 
 CloudSttRouter::CloudSttRouter(QObject* parent)
-    : AbstractSttClient(parent) {
+    : AbstractCloudSttClient(parent) {
     if (!s_cloudRouterInstance) {
         s_cloudRouterInstance = this;
     }
-    loadSettings();
+    if (auto* inst = SettingsManager::instance()) {
+        setSettingsManager(inst);
+    } else {
+        loadSettings();
+    }
     initDefaultProviders();
+}
+
+void CloudSttRouter::setSettingsManager(SettingsManager* settings) {
+    if (m_settingsManager == settings) {
+        return;
+    }
+    if (m_settingsManager) {
+        disconnect(m_settingsManager, nullptr, this, nullptr);
+    }
+    m_settingsManager = settings;
+    if (m_settingsManager) {
+        connect(
+            m_settingsManager, &SettingsManager::cloudRouterConfigChanged, this,
+            [this](const SettingsManager::CloudRouterConfig& config) { setActiveProviderId(config.activeProvider); });
+    }
+    loadSettings();
+}
+
+SettingsManager* CloudSttRouter::settingsManager() const noexcept {
+    return m_settingsManager;
 }
 
 CloudSttRouter::~CloudSttRouter() {
@@ -27,13 +55,6 @@ CloudSttRouter::~CloudSttRouter() {
 }
 
 CloudSttRouter* CloudSttRouter::instance() {
-    return s_cloudRouterInstance;
-}
-
-CloudSttRouter* CloudSttRouter::create(QQmlEngine* /*qmlEngine*/, QJSEngine* /*jsEngine*/) {
-    if (!s_cloudRouterInstance) {
-        s_cloudRouterInstance = new CloudSttRouter();
-    }
     return s_cloudRouterInstance;
 }
 
@@ -49,8 +70,14 @@ void CloudSttRouter::initDefaultProviders() {
 }
 
 void CloudSttRouter::loadSettings() {
-    QSettings settings;
-    setActiveProviderId(settings.value(u"Cloud/ActiveProvider"_s, u"groq"_s).toString());
+    QString providerId = u"groq"_s;
+    if (m_settingsManager) {
+        providerId = m_settingsManager->cloudRouterConfig().activeProvider;
+    } else {
+        const QSettings settings;
+        providerId = settings.value(SettingsKeys::kCloudActiveProvider.toString(), u"groq"_s).toString();
+    }
+    setActiveProviderId(providerId);
 }
 
 QString CloudSttRouter::activeProviderId() const {
@@ -66,7 +93,7 @@ void CloudSttRouter::setActiveProviderId(const QString& providerId) {
     emit activeProviderChanged(m_activeProviderId);
 }
 
-void CloudSttRouter::registerProvider(const QString& providerId, AbstractSttClient* client) {
+void CloudSttRouter::registerProvider(const QString& providerId, AbstractCloudSttClient* client) {
     if (!client || providerId.isEmpty()) {
         return;
     }
@@ -86,11 +113,11 @@ void CloudSttRouter::unregisterProvider(const QString& providerId) {
     }
 }
 
-AbstractSttClient* CloudSttRouter::activeCloudClient() const {
+AbstractCloudSttClient* CloudSttRouter::activeCloudClient() const {
     return m_activeClient;
 }
 
-AbstractSttClient* CloudSttRouter::activeClient() const {
+AbstractCloudSttClient* CloudSttRouter::activeClient() const {
     return m_activeClient;
 }
 
@@ -110,8 +137,8 @@ int CloudSttRouter::retrySecondsRemaining() const {
     return m_activeClient ? m_activeClient->retrySecondsRemaining() : 0;
 }
 
-AbstractSttClient::ErrorCategory CloudSttRouter::errorCategory() const {
-    return m_activeClient ? m_activeClient->errorCategory() : AbstractSttClient::ErrorCategory::None;
+AbstractCloudSttClient::ErrorCategory CloudSttRouter::errorCategory() const {
+    return m_activeClient ? m_activeClient->errorCategory() : AbstractCloudSttClient::ErrorCategory::None;
 }
 
 void CloudSttRouter::updateActiveClient() {
@@ -126,15 +153,15 @@ void CloudSttRouter::updateActiveClient() {
         disconnect(m_activeClient, &AbstractSttClient::errorOccurred, this, &CloudSttRouter::errorOccurred);
         disconnect(m_activeClient, &AbstractSttClient::busyChanged, this, &CloudSttRouter::busyChanged);
         disconnect(m_activeClient, &AbstractSttClient::readyChanged, this, &CloudSttRouter::readyChanged);
-        disconnect(m_activeClient, &AbstractSttClient::apiKeySetChanged, this, &CloudSttRouter::apiKeySetChanged);
-        disconnect(m_activeClient, &AbstractSttClient::isApiKeyInvalidChanged, this,
+        disconnect(m_activeClient, &AbstractCloudSttClient::apiKeySetChanged, this, &CloudSttRouter::apiKeySetChanged);
+        disconnect(m_activeClient, &AbstractCloudSttClient::isApiKeyInvalidChanged, this,
                    &CloudSttRouter::isApiKeyInvalidChanged);
-        disconnect(m_activeClient, &AbstractSttClient::isRateLimitedChanged, this,
+        disconnect(m_activeClient, &AbstractCloudSttClient::isRateLimitedChanged, this,
                    &CloudSttRouter::isRateLimitedChanged);
-        disconnect(m_activeClient, &AbstractSttClient::retrySecondsRemainingChanged, this,
+        disconnect(m_activeClient, &AbstractCloudSttClient::retrySecondsRemainingChanged, this,
                    &CloudSttRouter::retrySecondsRemainingChanged);
         disconnect(m_activeClient, &AbstractSttClient::lastErrorChanged, this, &CloudSttRouter::lastErrorChanged);
-        disconnect(m_activeClient, &AbstractSttClient::errorCategoryChanged, this,
+        disconnect(m_activeClient, &AbstractCloudSttClient::errorCategoryChanged, this,
                    &CloudSttRouter::errorCategoryChanged);
     }
 
@@ -145,14 +172,16 @@ void CloudSttRouter::updateActiveClient() {
         connect(m_activeClient, &AbstractSttClient::errorOccurred, this, &CloudSttRouter::errorOccurred);
         connect(m_activeClient, &AbstractSttClient::busyChanged, this, &CloudSttRouter::busyChanged);
         connect(m_activeClient, &AbstractSttClient::readyChanged, this, &CloudSttRouter::readyChanged);
-        connect(m_activeClient, &AbstractSttClient::apiKeySetChanged, this, &CloudSttRouter::apiKeySetChanged);
-        connect(m_activeClient, &AbstractSttClient::isApiKeyInvalidChanged, this,
+        connect(m_activeClient, &AbstractCloudSttClient::apiKeySetChanged, this, &CloudSttRouter::apiKeySetChanged);
+        connect(m_activeClient, &AbstractCloudSttClient::isApiKeyInvalidChanged, this,
                 &CloudSttRouter::isApiKeyInvalidChanged);
-        connect(m_activeClient, &AbstractSttClient::isRateLimitedChanged, this, &CloudSttRouter::isRateLimitedChanged);
-        connect(m_activeClient, &AbstractSttClient::retrySecondsRemainingChanged, this,
+        connect(m_activeClient, &AbstractCloudSttClient::isRateLimitedChanged, this,
+                &CloudSttRouter::isRateLimitedChanged);
+        connect(m_activeClient, &AbstractCloudSttClient::retrySecondsRemainingChanged, this,
                 &CloudSttRouter::retrySecondsRemainingChanged);
         connect(m_activeClient, &AbstractSttClient::lastErrorChanged, this, &CloudSttRouter::lastErrorChanged);
-        connect(m_activeClient, &AbstractSttClient::errorCategoryChanged, this, &CloudSttRouter::errorCategoryChanged);
+        connect(m_activeClient, &AbstractCloudSttClient::errorCategoryChanged, this,
+                &CloudSttRouter::errorCategoryChanged);
     }
 
     qCDebug(lcSpeech) << "CloudSttRouter: Active cloud provider switched to" << m_activeProviderId

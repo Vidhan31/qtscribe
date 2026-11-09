@@ -40,12 +40,11 @@ signals:
     void downloadFinished(const QString& modelId, bool success, const QString& error);
     void lastErrorChanged(const QString& error);
 
-private slots:
+private:
     void onDownloadReadyRead();
     void onDownloadProgress(qint64 bytesReceived, qint64 bytesTotal);
     void onDownloadFinished();
 
-private:
     void setLastError(const QString& error);
     void cleanupActiveDownload(bool removePartFile);
 

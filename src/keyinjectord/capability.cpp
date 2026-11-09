@@ -32,7 +32,7 @@ struct CapHandle {
 };
 
 void setCapEffective(cap_flag_value_t value) {
-    CapHandle h;
+    const CapHandle h;
     cap_value_t capList[] = {CAP_DAC_OVERRIDE};
 
     if (cap_set_flag(h.caps, CAP_EFFECTIVE, 1, capList, value) != 0) {
@@ -57,7 +57,7 @@ void lowerCapDacOverride() {
 }
 
 void permanentlyDropCapDacOverride() {
-    CapHandle h;
+    const CapHandle h;
     cap_value_t capList[] = {CAP_DAC_OVERRIDE};
 
     if (cap_set_flag(h.caps, CAP_EFFECTIVE, 1, capList, CAP_CLEAR) != 0 ||

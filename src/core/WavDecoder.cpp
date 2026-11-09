@@ -31,7 +31,7 @@ bool WavDecoder::decode(const QByteArray& wavData, std::vector<float>& outPcmf32
         return false;
     }
 
-    ma_decoder_config decoderConfig = ma_decoder_config_init(ma_format_f32, 1, targetSampleRate);
+    const ma_decoder_config decoderConfig = ma_decoder_config_init(ma_format_f32, 1, targetSampleRate);
     ma_decoder decoder;
 
     if (ma_decoder_init_memory(wavData.constData(), static_cast<size_t>(wavData.size()), &decoderConfig, &decoder) ==
@@ -111,27 +111,27 @@ bool WavDecoder::decode(const QByteArray& wavData, std::vector<float>& outPcmf32
     const char* samplePtr = data + dataOffset;
 
     for (int f = 0; f < frameCount; ++f) {
-        float sum = 0.0f;
+        float sum = 0.0F;
         for (int ch = 0; ch < numChannels; ++ch) {
             const int sampleIdx = (f * numChannels + ch) * bytesPerSample;
             if (audioFormat == 3 && bitsPerSample == 32) {
-                float val = 0.0f;
+                float val = 0.0F;
                 std::memcpy(&val, samplePtr + sampleIdx, sizeof(float));
                 sum += val;
             } else if (bitsPerSample == 32) {
                 int32_t val = 0;
                 std::memcpy(&val, samplePtr + sampleIdx, sizeof(int32_t));
-                sum += static_cast<float>(val) / 2147483648.0f;
+                sum += static_cast<float>(val) / 2147483648.0F;
             } else if (bitsPerSample == 16) {
                 int16_t val = 0;
                 std::memcpy(&val, samplePtr + sampleIdx, sizeof(int16_t));
-                sum += static_cast<float>(val) / 32768.0f;
+                sum += static_cast<float>(val) / 32768.0F;
             } else if (bitsPerSample == 8) {
-                const uint8_t val = static_cast<uint8_t>(samplePtr[sampleIdx]);
-                sum += (static_cast<float>(val) - 128.0f) / 128.0f;
+                const auto val = static_cast<uint8_t>(samplePtr[sampleIdx]);
+                sum += (static_cast<float>(val) - 128.0F) / 128.0F;
             }
         }
-        monoPcm[f] = std::clamp(sum / static_cast<float>(numChannels), -1.0f, 1.0f);
+        monoPcm[f] = std::clamp(sum / static_cast<float>(numChannels), -1.0F, 1.0F);
     }
 
     if (sampleRate != targetSampleRate && sampleRate > 0) {
@@ -142,7 +142,7 @@ bool WavDecoder::decode(const QByteArray& wavData, std::vector<float>& outPcmf32
             const double srcIdx = i * ratio;
             const int idx0 = static_cast<int>(srcIdx);
             const int idx1 = std::min(idx0 + 1, frameCount - 1);
-            const float frac = static_cast<float>(srcIdx - idx0);
+            const auto frac = static_cast<float>(srcIdx - idx0);
             outPcmf32[i] = std::lerp(monoPcm[idx0], monoPcm[idx1], frac);
         }
     } else {

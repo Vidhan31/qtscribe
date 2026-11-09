@@ -1,18 +1,14 @@
 #pragma once
 
-#include "AbstractSttClient.h"
+#include "AbstractCloudSttClient.h"
 
 #include <QHash>
 #include <QString>
-#include <QtQmlIntegration/qqmlintegration.h>
 
-class QQmlEngine;
-class QJSEngine;
+class SettingsManager;
 
-class CloudSttRouter : public AbstractSttClient {
+class CloudSttRouter : public AbstractCloudSttClient {
     Q_OBJECT
-    QML_ELEMENT
-    QML_SINGLETON
 
     Q_PROPERTY(QString activeProviderId READ activeProviderId WRITE setActiveProviderId NOTIFY activeProviderChanged FINAL)
 
@@ -21,17 +17,19 @@ public:
     ~CloudSttRouter() override;
 
     static CloudSttRouter* instance();
-    static CloudSttRouter* create(QQmlEngine* qmlEngine, QJSEngine* jsEngine);
 
-    void registerProvider(const QString& providerId, AbstractSttClient* client);
+    void registerProvider(const QString& providerId, AbstractCloudSttClient* client);
     void unregisterProvider(const QString& providerId);
+
+    void setSettingsManager(SettingsManager* settings);
+    [[nodiscard]] SettingsManager* settingsManager() const noexcept;
 
     [[nodiscard]] QString activeProviderId() const;
     void setActiveProviderId(const QString& providerId);
     void loadSettings();
 
-    AbstractSttClient* activeCloudClient() const;
-    AbstractSttClient* activeClient() const;
+    AbstractCloudSttClient* activeCloudClient() const;
+    AbstractCloudSttClient* activeClient() const;
 
     bool isApiKeySet() const override;
     bool isApiKeyInvalid() const override;
@@ -58,6 +56,7 @@ private:
     void updateActiveClient();
 
     QString m_activeProviderId {QStringLiteral("groq")};
-    QHash<QString, AbstractSttClient*> m_clients;
-    AbstractSttClient* m_activeClient = nullptr;
+    QHash<QString, AbstractCloudSttClient*> m_clients;
+    AbstractCloudSttClient* m_activeClient = nullptr;
+    SettingsManager* m_settingsManager = nullptr;
 };

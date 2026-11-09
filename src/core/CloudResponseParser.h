@@ -8,9 +8,9 @@
 struct CloudApiResponse {
     int httpStatus = 0;
     qint64 latencyMs = 0;
-    QByteArray rawBody = {};
-    QJsonObject json = {};
-    QString errorMessage = {};
+    QByteArray rawBody;
+    QJsonObject json;
+    QString errorMessage;
     bool isSuccess = false;
     bool isRateLimited = false;
     int retryAfterSeconds = 0;

@@ -1,8 +1,9 @@
 #include "DictationPadModel.h"
 
-#include "ClipboardManager.h"
-
 #include "DaemonClient.h"
+
+#include <QClipboard>
+#include <QGuiApplication>
 
 using namespace Qt::StringLiterals;
 
@@ -58,8 +59,9 @@ void DictationPadModel::copyToClipboard() {
 }
 
 void DictationPadModel::copyTextToClipboard(const QString& text) {
-    ClipboardManager clipboardManager;
-    clipboardManager.setText(text, false);
+    if (auto* clipboard = QGuiApplication::clipboard()) {
+        clipboard->setText(text);
+    }
 }
 
 int DictationPadModel::calculateWordCount(const QString& text) {

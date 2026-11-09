@@ -1,13 +1,13 @@
 #pragma once
 
+#include "common/SettingsKeys.h"
+
 #include <QObject>
 #include <QString>
 #include <QStringView>
-#include <QtQmlIntegration/qqmlintegration.h>
 
 class ApiKeyStore : public QObject {
     Q_OBJECT
-    QML_ELEMENT
 
     Q_PROPERTY(QString apiKey READ apiKey WRITE setApiKey NOTIFY apiKeyChanged FINAL)
     Q_PROPERTY(bool apiKeySet READ apiKeySet NOTIFY apiKeySetChanged FINAL)
@@ -48,10 +48,10 @@ private:
     bool m_apiKeyLoaded = false;
     bool m_isLoadingApiKey = false;
 
-    inline static constexpr QStringView kKeychainService = u"QtScribe";
-    inline static constexpr QStringView kKeychainKey = u"groq_api_key";
-    inline static constexpr QStringView kSettingsApiKey = u"Cloud/Providers/Groq/ApiKey";
-    inline static constexpr QStringView kLegacySettingsApiKey = u"Groq/ApiKey";
+    static constexpr QStringView kKeychainService = u"QtScribe";
+    static constexpr QStringView kKeychainKey = u"groq_api_key";
+    static constexpr QStringView kSettingsApiKey = SettingsKeys::kGroqSettingsKey;
+    static constexpr QStringView kLegacySettingsApiKey = SettingsKeys::kGroqLegacySettingsKey;
 
     QString m_keychainService = kKeychainService.toString();
     QString m_keychainKey = kKeychainKey.toString();

@@ -11,16 +11,22 @@ qt_add_qml_module(qtscribe_ui
         QtQuick.Layouts
         QtQuick.Templates
     SOURCES
+        SpeechClient.h
+        SpeechClient.cpp
+        ModelClient.h
+        ModelClient.cpp
+        SettingsClient.h
+        SettingsClient.cpp
+        SystemClient.h
+        SystemClient.cpp
         DaemonClient.h
         DaemonClient.cpp
-        GuiDictationCoordinator.h
-        GuiDictationCoordinator.cpp
-        GuiHealthMonitor.h
-        GuiHealthMonitor.cpp
-        GuiWhisperClient.h
-        GuiWhisperClient.cpp
+        AppSettings.h
+        AppSettings.cpp
         DaemonDiagnosticModel.h
         DaemonDiagnosticModel.cpp
+        ModelCatalogModel.h
+        ModelCatalogModel.cpp
         TranscriptionModel.h
         TranscriptionModel.cpp
         DictationPadModel.h
@@ -32,18 +38,6 @@ qt_add_qml_module(qtscribe_ui
         LicenseHelper.h
         ColorUtils.h
         ColorUtils.cpp
-        ${CMAKE_SOURCE_DIR}/src/core/HttpRequestRunner.h
-        ${CMAKE_SOURCE_DIR}/src/core/AbstractSttClient.h
-        ${CMAKE_SOURCE_DIR}/src/core/AbstractLlmClient.h
-        ${CMAKE_SOURCE_DIR}/src/core/GroqSttClient.h
-        ${CMAKE_SOURCE_DIR}/src/core/GeminiSttClient.h
-        ${CMAKE_SOURCE_DIR}/src/core/CloudSttRouter.h
-        ${CMAKE_SOURCE_DIR}/src/core/ModelDownloader.h
-        ${CMAKE_SOURCE_DIR}/src/core/WhisperModelManager.h
-        ${CMAKE_SOURCE_DIR}/src/core/GroqLlmClient.h
-        ${CMAKE_SOURCE_DIR}/src/core/AudioFeedbackPlayer.h
-        ${CMAKE_SOURCE_DIR}/src/core/AudioRecorder.h
-        ${CMAKE_SOURCE_DIR}/src/core/LinuxNotificationService.h
     QML_FILES
         Main.qml
         SpeechPanel.qml
@@ -116,7 +110,6 @@ qt_add_resources(qtscribe_ui "qtscribe_assets"
 
 target_include_directories(qtscribe_ui
     PUBLIC
-        ${CMAKE_SOURCE_DIR}/src/core
         ${CMAKE_SOURCE_DIR}/src/ui
         ${CMAKE_SOURCE_DIR}/src
 )
@@ -128,14 +121,15 @@ target_compile_definitions(qtscribe_ui
 
 target_link_libraries(qtscribe_ui
     PUBLIC
-        qtscribe_core
         Qt6::Gui
         Qt6::Qml
         Qt6::Quick
         Qt6::QuickControls2
         Qt6::QuickTemplates2
         Qt6::QuickEffects
+        Qt6::Network
         Qt6::DBus
+        Qt6Keychain::Qt6Keychain
     PRIVATE
         qtscribe::compiler_flags
 )

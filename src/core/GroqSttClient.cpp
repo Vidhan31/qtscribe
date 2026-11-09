@@ -2,9 +2,11 @@
 
 #include "LoggingCategories.h"
 
+#include "common/SettingsKeys.h"
 #include "ApiKeyStore.h"
 #include "CloudResponseParser.h"
 #include "NetworkTlsHelper.h"
+#include "SettingsManager.h"
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
@@ -24,20 +26,22 @@
 using namespace Qt::StringLiterals;
 using namespace std::chrono_literals;
 
-static inline GroqSttClient* s_groqInstance = nullptr;
-
 #ifndef QTSCRIBE_VERSION
 #define QTSCRIBE_VERSION "0.0.0-dev"
 #endif
 
-static QString groqUserAgent() {
+namespace {
+GroqSttClient* s_groqInstance = nullptr;
+
+QString groqUserAgent() {
     const QString appVer = QCoreApplication::applicationVersion().isEmpty() ? u"" QTSCRIBE_VERSION ""_s
                                                                             : QCoreApplication::applicationVersion();
     return u"QtScribe/%1 (Linux; Qt %2)"_s.arg(appVer, QString::fromUtf8(QT_VERSION_STR));
 }
+} // namespace
 
 GroqSttClient::GroqSttClient(QObject* parent)
-    : AbstractSttClient(parent)
+    : AbstractCloudSttClient(parent)
     , m_nam(new QNetworkAccessManager(this))
     , m_retryCountdownTimer(new QTimer(this))
     , m_retryTimer(new QTimer(this)) {
@@ -71,11 +75,15 @@ GroqSttClient::GroqSttClient(QObject* parent)
     });
 
     auto* defaultStore = new ApiKeyStore(this);
-    defaultStore->setStorageKeys(u"QtScribe"_s, u"groq_api_key"_s, u"Cloud/Providers/Groq/ApiKey"_s);
+    defaultStore->setStorageKeys(u"QtScribe"_s, u"groq_api_key"_s, SettingsKeys::kGroqSettingsKey.toString());
     setKeyStore(defaultStore);
     m_ownsKeyStore = true;
 
-    loadSettings();
+    if (auto* inst = SettingsManager::instance()) {
+        setSettingsManager(inst);
+    } else {
+        loadSettings();
+    }
 }
 
 GroqSttClient::~GroqSttClient() {
@@ -88,31 +96,68 @@ GroqSttClient* GroqSttClient::instance() {
     return s_groqInstance;
 }
 
-GroqSttClient* GroqSttClient::create(QQmlEngine* /*qmlEngine*/, QJSEngine* /*jsEngine*/) {
-    if (!s_groqInstance) {
-        s_groqInstance = new GroqSttClient();
+void GroqSttClient::setSettingsManager(SettingsManager* settings) {
+    if (m_settingsManager == settings) {
+        return;
     }
-    return s_groqInstance;
+    if (m_settingsManager) {
+        disconnect(m_settingsManager, nullptr, this, nullptr);
+    }
+    m_settingsManager = settings;
+    if (m_settingsManager) {
+        connect(m_settingsManager, &SettingsManager::groqSttConfigChanged, this,
+                [this](const SettingsManager::GroqSttConfig& config) {
+                    if (m_selectedModel != config.model) {
+                        m_selectedModel = config.model;
+                        emit selectedModelChanged();
+                    }
+                    if (m_language != config.language) {
+                        m_language = config.language;
+                        emit languageChanged();
+                    }
+                    if (m_customPrompt != config.customPrompt) {
+                        m_customPrompt = config.customPrompt;
+                        emit customPromptChanged();
+                    }
+                });
+    }
+    loadSettings();
+}
+
+SettingsManager* GroqSttClient::settingsManager() const noexcept {
+    return m_settingsManager;
 }
 
 void GroqSttClient::loadSettings() {
-    QSettings settings;
-    QString model = settings.value(u"Groq/Model"_s, kDefaultModel.toString()).toString();
-    if (model.isEmpty() || (model != u"whisper-large-v3-turbo"_s && model != u"whisper-large-v3"_s)) {
-        model = kDefaultModel.toString();
+    QString model = kDefaultModel.toString();
+    QString lang;
+    QString prompt;
+
+    if (m_settingsManager) {
+        const auto& config = m_settingsManager->groqSttConfig();
+        model = config.model;
+        lang = config.language;
+        prompt = config.customPrompt;
+    } else {
+        const QSettings settings;
+        model = settings.value(SettingsKeys::kGroqModel.toString(), kDefaultModel.toString()).toString();
+        if (model.isEmpty() || (model != u"whisper-large-v3-turbo"_s && model != u"whisper-large-v3"_s)) {
+            model = kDefaultModel.toString();
+        }
+        lang = settings.value(SettingsKeys::kGroqLanguage.toString(), QString()).toString();
+        prompt = settings.value(SettingsKeys::kGroqCustomPrompt.toString(), QString()).toString();
     }
+
     if (m_selectedModel != model) {
         m_selectedModel = model;
         emit selectedModelChanged();
     }
 
-    QString lang = settings.value(u"Groq/Language"_s, QString()).toString();
     if (m_language != lang) {
         m_language = lang;
         emit languageChanged();
     }
 
-    QString prompt = settings.value(u"Groq/CustomPrompt"_s, QString()).toString();
     if (m_customPrompt != prompt) {
         m_customPrompt = prompt;
         emit customPromptChanged();
@@ -196,7 +241,7 @@ int GroqSttClient::retrySecondsRemaining() const {
     return m_retrySecondsRemaining;
 }
 
-AbstractSttClient::ErrorCategory GroqSttClient::errorCategory() const {
+AbstractCloudSttClient::ErrorCategory GroqSttClient::errorCategory() const {
     return m_errorCategory;
 }
 
@@ -227,13 +272,12 @@ void GroqSttClient::setSelectedModel(const QString& model) {
     }
     if (m_selectedModel != trimmed) {
         m_selectedModel = trimmed;
-        {
+        if (m_settingsManager) {
+            m_settingsManager->setGroqModel(m_selectedModel);
+        } else {
             QSettings settings;
-            settings.setValue(u"Groq/Model"_s, m_selectedModel);
+            settings.setValue(SettingsKeys::kGroqModel.toString(), m_selectedModel);
             settings.sync();
-            if (settings.status() != QSettings::NoError) {
-                qWarning() << "GroqSttClient: Failed to save Groq/Model:" << settings.status();
-            }
         }
         emit selectedModelChanged();
     }
@@ -244,16 +288,15 @@ QString GroqSttClient::language() const {
 }
 
 void GroqSttClient::setLanguage(const QString& lang) {
-    QString trimmed = lang.trimmed();
+    const QString trimmed = lang.trimmed();
     if (m_language != trimmed) {
         m_language = trimmed;
-        {
+        if (m_settingsManager) {
+            m_settingsManager->setGroqLanguage(m_language);
+        } else {
             QSettings settings;
-            settings.setValue(u"Groq/Language"_s, m_language);
+            settings.setValue(SettingsKeys::kGroqLanguage.toString(), m_language);
             settings.sync();
-            if (settings.status() != QSettings::NoError) {
-                qWarning() << "GroqSttClient: Failed to save Groq/Language:" << settings.status();
-            }
         }
         emit languageChanged();
     }
@@ -266,13 +309,12 @@ QString GroqSttClient::customPrompt() const {
 void GroqSttClient::setCustomPrompt(const QString& prompt) {
     if (m_customPrompt != prompt) {
         m_customPrompt = prompt;
-        {
+        if (m_settingsManager) {
+            m_settingsManager->setGroqCustomPrompt(m_customPrompt);
+        } else {
             QSettings settings;
-            settings.setValue(u"Groq/CustomPrompt"_s, m_customPrompt);
+            settings.setValue(SettingsKeys::kGroqCustomPrompt.toString(), m_customPrompt);
             settings.sync();
-            if (settings.status() != QSettings::NoError) {
-                qWarning() << "GroqSttClient: Failed to save Groq/CustomPrompt:" << settings.status();
-            }
         }
         emit customPromptChanged();
     }
@@ -415,10 +457,11 @@ void GroqSttClient::sendTranscribeRequest() {
     setBusy(true);
     setLastError({});
 
-    QString modelToUse = m_selectedModel.trimmed().isEmpty() ? kDefaultModel.toString() : m_selectedModel.trimmed();
-    QString langToUse = m_language.trimmed();
-    QString promptToUse = m_customPrompt.trimmed();
-    QString filenameToUse = m_lastFilename.isEmpty() ? u"audio.wav"_s : m_lastFilename;
+    const QString modelToUse =
+        m_selectedModel.trimmed().isEmpty() ? kDefaultModel.toString() : m_selectedModel.trimmed();
+    const QString langToUse = m_language.trimmed();
+    const QString promptToUse = m_customPrompt.trimmed();
+    const QString filenameToUse = m_lastFilename.isEmpty() ? u"audio.wav"_s : m_lastFilename;
 
     qCDebug(lcNetwork) << "Preparing Groq STT multipart request -> Model:" << modelToUse
                        << "Language:" << (langToUse.isEmpty() ? u"Auto-detect"_s : langToUse)
@@ -475,7 +518,7 @@ void GroqSttClient::sendTranscribeRequest() {
     m_currentReply = m_nam->post(request, multiPart);
     multiPart->setParent(m_currentReply);
 
-    QPointer<GroqSttClient> self = this;
+    const QPointer<GroqSttClient> self = this;
     connect(m_currentReply, &QNetworkReply::finished, this, [self, timer]() {
         if (!self) {
             return;
@@ -513,14 +556,14 @@ bool GroqSttClient::shouldRetry(const CloudApiResponse& res) const {
     return false;
 }
 
-int GroqSttClient::calculateRetryDelayMs(const CloudApiResponse& res) const {
+int GroqSttClient::calculateRetryDelayMs(const CloudApiResponse& res) {
     if (res.isRateLimited && res.retryAfterSeconds > 0) {
         return res.retryAfterSeconds * 1000;
     }
     return kDefaultDelayMs;
 }
 
-AbstractSttClient::ErrorCategory GroqSttClient::classifyError(const CloudApiResponse& res, QString& outMessage) const {
+AbstractCloudSttClient::ErrorCategory GroqSttClient::classifyError(const CloudApiResponse& res, QString& outMessage) {
     ErrorCategory cat = ErrorCategory::GeneralError;
     outMessage = res.errorMessage;
 
@@ -577,7 +620,7 @@ void GroqSttClient::handleApiResponse(const CloudApiResponse& res) {
         setBusy(false);
 
         QString errorText;
-        ErrorCategory cat = classifyError(res, errorText);
+        const ErrorCategory cat = classifyError(res, errorText);
 
         if (cat == ErrorCategory::RateLimited && res.retryAfterSeconds > 0) {
             setRetrySecondsRemaining(res.retryAfterSeconds);

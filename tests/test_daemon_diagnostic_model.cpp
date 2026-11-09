@@ -1,7 +1,6 @@
-#include "AbstractTextInjector.h"
-#include "DaemonClient.h"
-#include "DaemonConnector.h"
 #include "DaemonDiagnosticModel.h"
+
+#include "DaemonClient.h"
 
 #include <QCoreApplication>
 #include <QSettings>
@@ -9,26 +8,6 @@
 #include <QTest>
 
 using namespace Qt::StringLiterals;
-
-class MockInjector : public AbstractTextInjector {
-    Q_OBJECT
-
-public:
-    explicit MockInjector(QObject* parent = nullptr)
-        : AbstractTextInjector(parent) { }
-
-    bool inject(const QString& text) override {
-        m_lastInjectedText = text;
-        m_injectCount++;
-        return true;
-    }
-
-    void cancel() override { m_cancelCount++; }
-
-    QString m_lastInjectedText;
-    int m_injectCount = 0;
-    int m_cancelCount = 0;
-};
 
 class TestDaemonDiagnosticModel : public QObject {
     Q_OBJECT
@@ -48,8 +27,6 @@ private slots:
     void testDaemonClientHonorsDisableRemoteAttach();
 
 private:
-    DaemonConnector* m_connector = nullptr;
-    MockInjector* m_injector = nullptr;
     DaemonDiagnosticModel* m_model = nullptr;
 };
 
@@ -70,27 +47,19 @@ void TestDaemonDiagnosticModel::init() {
     QSettings settings;
     settings.clear();
 
-    m_connector = new DaemonConnector(this);
-    m_injector = new MockInjector(this);
     m_model = new DaemonDiagnosticModel(this);
-    m_model->setDaemonConnector(m_connector);
-    m_model->setTextInjector(m_injector);
 }
 
 void TestDaemonDiagnosticModel::cleanup() {
     delete m_model;
-    delete m_injector;
-    delete m_connector;
     m_model = nullptr;
-    m_injector = nullptr;
-    m_connector = nullptr;
 }
 
 void TestDaemonDiagnosticModel::testInitialProperties() {
-    QVERIFY(m_model->daemonConnector() == m_connector);
-    QVERIFY(m_model->textInjector() == m_injector);
-    QCOMPARE(m_model->isConnected(), m_connector->isConnected());
-    QCOMPARE(m_model->hasFatalError(), m_connector->hasFatalError());
+    QVERIFY(!m_model->isConnected());
+    QVERIFY(!m_model->hasFatalError());
+    QVERIFY(m_model->fatalErrorMessage().isEmpty());
+    QVERIFY(m_model->lastError().isEmpty());
 }
 
 void TestDaemonDiagnosticModel::testClipboardWarningFlow() {
@@ -128,13 +97,10 @@ void TestDaemonDiagnosticModel::testSettingsPersistence() {
 }
 
 void TestDaemonDiagnosticModel::testTestTypingDelegation() {
+    QVERIFY(m_model->testTextInjection());
+    QVERIFY(m_model->testTextInjection(u"Custom Test Text"_s));
     QVERIFY(m_model->testTyping());
-    QCOMPARE(m_injector->m_injectCount, 1);
-    QCOMPARE(m_injector->m_lastInjectedText, u" [QtScribe Test] "_s);
-
     QVERIFY(m_model->testTyping(u"Custom Test Text"_s));
-    QCOMPARE(m_injector->m_injectCount, 2);
-    QCOMPARE(m_injector->m_lastInjectedText, u"Custom Test Text"_s);
 }
 
 void TestDaemonDiagnosticModel::testDaemonClientCanRecordOffline() {

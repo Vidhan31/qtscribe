@@ -58,7 +58,7 @@ bool FsSecurityChecker::validateDirectoryAncestry(const std::filesystem::path& r
                                                   bool allowDevMode, struct stat* outLeafStat,
                                                   bool rejectGroupWritable) {
     std::error_code ec;
-    std::filesystem::path canon = std::filesystem::canonical(rawPath, ec);
+    const std::filesystem::path canon = std::filesystem::canonical(rawPath, ec);
     if (ec || canon.empty() || !canon.is_absolute()) {
         KEYINJECTORD_LOG_ERROR("Launcher authorization failed: canonicalize path '%s' error: %s", rawPath.c_str(),
                                ec.message().c_str());
@@ -73,7 +73,7 @@ bool FsSecurityChecker::validateDirectoryAncestry(const std::filesystem::path& r
 
     std::vector<std::string> parts;
     for (const auto& part : canon) {
-        std::string s = part.string();
+        const std::string s = part.string();
         if (s.empty() || s == "/") {
             continue;
         }
@@ -134,7 +134,7 @@ bool FsSecurityChecker::validateDirectoryAncestry(const std::filesystem::path& r
     }
 
     for (size_t i = 0; i + 1 < parts.size(); ++i) {
-        int nextFd = openat(currentFd, parts[i].c_str(), O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+        const int nextFd = openat(currentFd, parts[i].c_str(), O_PATH | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
         if (nextFd < 0) {
             close(currentFd);
             KEYINJECTORD_LOG_ERROR("Launcher authorization failed: openat directory component '%s' error: %s",
@@ -188,7 +188,7 @@ bool FsSecurityChecker::validateDirectoryAncestry(const std::filesystem::path& r
     }
 
     const std::string& leafName = parts.back();
-    int leafFd = openat(currentFd, leafName.c_str(), O_PATH | O_NOFOLLOW | O_CLOEXEC);
+    const int leafFd = openat(currentFd, leafName.c_str(), O_PATH | O_NOFOLLOW | O_CLOEXEC);
     if (leafFd < 0) {
         close(currentFd);
         KEYINJECTORD_LOG_ERROR("Launcher authorization failed: openat leaf '%s' error: %s", leafName.c_str(),

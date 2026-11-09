@@ -1,4 +1,4 @@
-#include "AbstractSttClient.h"
+#include "AbstractCloudSttClient.h"
 #include "CloudSttRouter.h"
 
 #include <QCoreApplication>
@@ -8,12 +8,12 @@
 
 using namespace Qt::StringLiterals;
 
-class FakeMockCloudSttClient : public AbstractSttClient {
+class FakeMockCloudSttClient : public AbstractCloudSttClient {
     Q_OBJECT
 
 public:
     explicit FakeMockCloudSttClient(bool smart = false, QObject* parent = nullptr)
-        : AbstractSttClient(parent)
+        : AbstractCloudSttClient(parent)
         , m_smart(smart) { }
 
     void transcribe(const QByteArray& wavData) override {
@@ -222,15 +222,15 @@ private slots:
         QCOMPARE(router.isApiKeySet(), true);
         QCOMPARE(router.isApiKeyInvalid(), false);
 
-        client.triggerError(u"Unauthorized API key"_s, AbstractSttClient::ErrorCategory::InvalidApiKey);
+        client.triggerError(u"Unauthorized API key"_s, AbstractCloudSttClient::ErrorCategory::InvalidApiKey);
         QCOMPARE(spyKeyInvalid.count(), 1);
         QCOMPARE(spyLastError.count(), 1);
         QCOMPARE(spyErrorCategory.count(), 1);
         QCOMPARE(router.isApiKeyInvalid(), true);
         QCOMPARE(router.lastError(), u"Unauthorized API key"_s);
-        QCOMPARE(router.errorCategory(), AbstractSttClient::ErrorCategory::InvalidApiKey);
+        QCOMPARE(router.errorCategory(), AbstractCloudSttClient::ErrorCategory::InvalidApiKey);
 
-        client.triggerError(u"Rate limit reached"_s, AbstractSttClient::ErrorCategory::RateLimited);
+        client.triggerError(u"Rate limit reached"_s, AbstractCloudSttClient::ErrorCategory::RateLimited);
         client.setMockRetrySeconds(30);
         QCOMPARE(spyRateLimited.count(), 1);
         QCOMPARE(spyRetrySeconds.count(), 1);
@@ -247,7 +247,7 @@ private slots:
 
         FakeMockCloudSttClient geminiClient(true);
         geminiClient.setMockApiKeySet(false);
-        geminiClient.triggerError(u"Gemini Rate Limited"_s, AbstractSttClient::ErrorCategory::RateLimited);
+        geminiClient.triggerError(u"Gemini Rate Limited"_s, AbstractCloudSttClient::ErrorCategory::RateLimited);
         geminiClient.setMockRetrySeconds(15);
 
         router.registerProvider(u"groq"_s, &groqClient);

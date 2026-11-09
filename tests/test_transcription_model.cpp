@@ -1,4 +1,3 @@
-#include "DictationCoordinator.h"
 #include "TranscriptionModel.h"
 
 #include <QCoreApplication>
@@ -18,9 +17,7 @@ class TestTranscriptionModel : public QObject {
     Q_OBJECT
 
 private slots:
-    void initTestCase() {
-        qputenv("QTSCRIBE_DISABLE_REMOTE_ATTACH", "1");
-    }
+    void initTestCase() { qputenv("QTSCRIBE_DISABLE_REMOTE_ATTACH", "1"); }
 
     void testSourceModelRejectsEmptyAndWhitespace() {
         TranscriptionSourceModel source;
@@ -50,7 +47,9 @@ private slots:
                  u"Second transcription"_s);
         QVERIFY(!source.data(firstRow, static_cast<int>(TranscriptionSourceModel::Roles::IdRole)).toString().isEmpty());
         QVERIFY(source.data(firstRow, static_cast<int>(TranscriptionSourceModel::Roles::TimestampRole)).isValid());
-        QVERIFY(!source.data(firstRow, static_cast<int>(TranscriptionSourceModel::Roles::FormattedTimestampRole)).toString().isEmpty());
+        QVERIFY(!source.data(firstRow, static_cast<int>(TranscriptionSourceModel::Roles::FormattedTimestampRole))
+                     .toString()
+                     .isEmpty());
 
         const QModelIndex secondRow = source.index(1, 0);
         QCOMPARE(source.data(secondRow, static_cast<int>(TranscriptionSourceModel::Roles::TextRole)).toString(),
@@ -74,12 +73,14 @@ private slots:
         QCOMPARE(source.rowCount(), 200);
 
         // Row 0 is the newest record (204)
-        QCOMPARE(source.data(source.index(0, 0), static_cast<int>(TranscriptionSourceModel::Roles::TextRole)).toString(),
-                 u"Record 204"_s);
+        QCOMPARE(
+            source.data(source.index(0, 0), static_cast<int>(TranscriptionSourceModel::Roles::TextRole)).toString(),
+            u"Record 204"_s);
 
         // Row 199 is the oldest preserved record (5) — records 0, 1, 2, 3, 4 were evicted
-        QCOMPARE(source.data(source.index(199, 0), static_cast<int>(TranscriptionSourceModel::Roles::TextRole)).toString(),
-                 u"Record 5"_s);
+        QCOMPARE(
+            source.data(source.index(199, 0), static_cast<int>(TranscriptionSourceModel::Roles::TextRole)).toString(),
+            u"Record 5"_s);
     }
 
     void testSourceModelClearAll() {
@@ -160,45 +161,35 @@ private slots:
         model.loadHistory(tempFile.fileName());
 
         QCOMPARE(model.count(), 1);
-        QCOMPARE(model.data(model.index(0, 0), static_cast<int>(TranscriptionModel::Roles::IdRole)).toString(), expectedId);
+        QCOMPARE(model.data(model.index(0, 0), static_cast<int>(TranscriptionModel::Roles::IdRole)).toString(),
+                 expectedId);
         QCOMPARE(model.data(model.index(0, 0), static_cast<int>(TranscriptionModel::Roles::TimestampRole)).toDateTime(),
                  expectedTimestamp);
         QCOMPARE(model.data(model.index(0, 0), static_cast<int>(TranscriptionModel::Roles::TextRole)).toString(),
                  expectedText);
     }
 
-    void testLoadHistoryRestrictsExistingFilePermissions() {
-        QTemporaryFile tempFile;
-        QVERIFY(tempFile.open());
-        tempFile.write("[]");
-        tempFile.close();
-
-        QFile::setPermissions(tempFile.fileName(), QFileDevice::ReadOwner | QFileDevice::WriteOwner |
-                                                      QFileDevice::ReadGroup | QFileDevice::ReadOther);
-
+    void testLoadFromJson() {
+        const QString json =
+            u"[{\"id\":\"custom-id\",\"timestamp\":\"2026-02-01T10:00:00Z\",\"text\":\"Loaded from JSON\"}]"_s;
         TranscriptionModel model;
-        model.loadHistory(tempFile.fileName());
+        model.loadFromJson(json);
 
-        const QFile::Permissions perms = QFile::permissions(tempFile.fileName());
-        QVERIFY(perms.testFlag(QFileDevice::ReadOwner));
-        QVERIFY(perms.testFlag(QFileDevice::WriteOwner));
-        QVERIFY(!perms.testFlag(QFileDevice::ReadGroup));
-        QVERIFY(!perms.testFlag(QFileDevice::ReadOther));
+        QCOMPARE(model.count(), 1);
+        QCOMPARE(model.data(model.index(0, 0), static_cast<int>(TranscriptionModel::Roles::IdRole)).toString(),
+                 u"custom-id"_s);
+        QCOMPARE(model.data(model.index(0, 0), static_cast<int>(TranscriptionModel::Roles::TextRole)).toString(),
+                 u"Loaded from JSON"_s);
     }
 
-    void testClearAllRemovesHistoryFile() {
-        const QString historyPath = DictationCoordinator::historyFilePath();
-        const QFileInfo fileInfo(historyPath);
-        QDir().mkpath(fileInfo.absolutePath());
-        QFile f(historyPath);
-        QVERIFY(f.open(QIODevice::WriteOnly));
-        f.write("[]");
-        f.close();
-        QVERIFY(QFile::exists(historyPath));
-
+    void testClearAllEmptiesModel() {
         TranscriptionModel model;
+        model.addRecord(u"To be cleared 1"_s);
+        model.addRecord(u"To be cleared 2"_s);
+        QCOMPARE(model.count(), 2);
+
         model.clearAll();
-        QVERIFY(!QFile::exists(historyPath));
+        QCOMPARE(model.count(), 0);
     }
 };
 

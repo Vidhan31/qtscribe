@@ -4,16 +4,14 @@
 #include "HttpRequestRunner.h"
 
 #include <QString>
-#include <QtQmlIntegration/qqmlintegration.h>
 
 class ApiKeyStore;
 class QNetworkAccessManager;
 class QTimer;
+class SettingsManager;
 
 class GroqLlmClient : public AbstractLlmClient {
     Q_OBJECT
-    QML_ELEMENT
-    QML_SINGLETON
 
     Q_PROPERTY(QString lastError READ lastError NOTIFY lastErrorChanged FINAL)
     Q_PROPERTY(QString selectedModel READ selectedModel WRITE setSelectedModel NOTIFY selectedModelChanged FINAL)
@@ -29,6 +27,9 @@ public:
     void setKeyStore(ApiKeyStore* keyStore);
     ApiKeyStore* keyStore() const;
     void setNetworkAccessManager(QNetworkAccessManager* nam);
+
+    void setSettingsManager(SettingsManager* settings);
+    [[nodiscard]] SettingsManager* settingsManager() const noexcept;
 
     bool isBusy() const override;
     bool isCancelled() const;
@@ -72,6 +73,7 @@ private:
     QString currentSystemPrompt() const;
 
     ApiKeyStore* m_keyStore = nullptr;
+    SettingsManager* m_settingsManager = nullptr;
     QNetworkAccessManager* m_nam = nullptr;
     QTimer* m_retryTimer = nullptr;
     HttpRequestRunner m_requestRunner;
@@ -83,5 +85,5 @@ private:
     double m_temperature = 0.1;
     bool m_enabled = false;
 
-    inline static constexpr QStringView kDefaultModel = u"openai/gpt-oss-20b";
+    static constexpr QStringView kDefaultModel = u"openai/gpt-oss-20b";
 };

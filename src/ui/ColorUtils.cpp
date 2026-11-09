@@ -1,5 +1,7 @@
 #include "ColorUtils.h"
 
+#include "common/SettingsKeys.h"
+
 #include <QEvent>
 #include <QGuiApplication>
 #include <QPalette>
@@ -12,11 +14,11 @@ using namespace Qt::StringLiterals;
 
 ColorUtils::ColorUtils(QObject* parent)
     : QObject(parent) {
-    QSettings settings;
-    m_themeMode = settings.value(u"ui/themeMode"_s, u"system"_s).toString();
+    const QSettings settings;
+    m_themeMode = settings.value(SettingsKeys::kUiThemeMode.toString(), u"system"_s).toString();
 
     if (auto* app = qGuiApp) {
-        if (auto* hints = app->styleHints()) {
+        if (auto* hints = QGuiApplication::styleHints()) {
             connect(hints, &QStyleHints::colorSchemeChanged, this, [this](Qt::ColorScheme) { updateEffectiveTheme(); });
         }
         app->installEventFilter(this);
@@ -37,12 +39,13 @@ QString ColorUtils::themeMode() const {
 }
 
 void ColorUtils::setThemeMode(const QString& mode) {
-    if (m_themeMode == mode)
+    if (m_themeMode == mode) {
         return;
+    }
 
     m_themeMode = mode;
     QSettings settings;
-    settings.setValue(u"ui/themeMode"_s, m_themeMode);
+    settings.setValue(SettingsKeys::kUiThemeMode.toString(), m_themeMode);
 
     emit themeModeChanged();
     updateEffectiveTheme();
@@ -64,26 +67,32 @@ QColor ColorUtils::accentColor() const {
     const auto palette = QGuiApplication::palette();
 
     auto isValidAccent = [](const QColor& c) -> bool {
-        if (!c.isValid() || c.alphaF() < 0.5f)
+        if (!c.isValid() || c.alphaF() < 0.5F) {
             return false;
-        const float sum = static_cast<float>(c.redF() + c.greenF() + c.blueF());
-        if (sum < 0.2f || (c.redF() > 0.95f && c.greenF() > 0.95f && c.blueF() > 0.95f))
+        }
+        const float sum = c.redF() + c.greenF() + c.blueF();
+        if (sum < 0.2F || (c.redF() > 0.95F && c.greenF() > 0.95F && c.blueF() > 0.95F)) {
             return false;
-        if (c.lightnessF() < 0.15f || c.lightnessF() > 0.92f)
+        }
+        if (c.lightnessF() < 0.15F || c.lightnessF() > 0.92F) {
             return false;
-        if (c.hslSaturationF() < 0.15f && std::abs(c.redF() - c.greenF()) < 0.05f &&
-            std::abs(c.greenF() - c.blueF()) < 0.05f)
+        }
+        if (c.hslSaturationF() < 0.15F && std::abs(c.redF() - c.greenF()) < 0.05F &&
+            std::abs(c.greenF() - c.blueF()) < 0.05F) {
             return false;
+        }
         return true;
     };
 
     QColor accent = palette.color(QPalette::Accent);
-    if (isValidAccent(accent))
+    if (isValidAccent(accent)) {
         return accent;
+    }
 
     QColor highlight = palette.color(QPalette::Highlight);
-    if (isValidAccent(highlight))
+    if (isValidAccent(highlight)) {
         return highlight;
+    }
 
     return m_isDark ? QColor(u"#3584E4"_s) : QColor(u"#1C71D8"_s);
 }
@@ -125,7 +134,15 @@ void ColorUtils::updateEffectiveTheme() {
         emit systemThemeChanged();
     }
 
-    const bool effectiveDark = (m_themeMode == u"dark"_s) ? true : (m_themeMode == u"light"_s) ? false : sysDark;
+    const bool effectiveDark = [&]() {
+        if (m_themeMode == u"dark"_s) {
+            return true;
+        }
+        if (m_themeMode == u"light"_s) {
+            return false;
+        }
+        return sysDark;
+    }();
 
     if (m_isDark != effectiveDark) {
         m_isDark = effectiveDark;
@@ -140,11 +157,10 @@ QColor ColorUtils::withAlpha(const QColor& baseColor, qreal alpha) {
 }
 
 QColor ColorUtils::tint(const QColor& baseColor, const QColor& tintColor) {
-    const float a = static_cast<float>(tintColor.alphaF());
-    return QColor::fromRgbF(
-        std::lerp(static_cast<float>(baseColor.redF()), static_cast<float>(tintColor.redF()), a),
-        std::lerp(static_cast<float>(baseColor.greenF()), static_cast<float>(tintColor.greenF()), a),
-        std::lerp(static_cast<float>(baseColor.blueF()), static_cast<float>(tintColor.blueF()), a), baseColor.alphaF());
+    const float a = tintColor.alphaF();
+    return QColor::fromRgbF(std::lerp(baseColor.redF(), tintColor.redF(), a),
+                            std::lerp(baseColor.greenF(), tintColor.greenF(), a),
+                            std::lerp(baseColor.blueF(), tintColor.blueF(), a), baseColor.alphaF());
 }
 
 QColor ColorUtils::statusBg(const QColor& baseColor, qreal alpha) const {

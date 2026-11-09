@@ -102,8 +102,8 @@ bool DaemonConnector::ensureDaemonRunning() {
             return false;
         }
 
-        int parentFd = fds[0];
-        int childFd = fds[1];
+        const int parentFd = fds[0];
+        const int childFd = fds[1];
 
         if (!m_daemonProcess) {
             m_daemonProcess = new QProcess(this);
@@ -113,7 +113,7 @@ bool DaemonConnector::ensureDaemonRunning() {
 
         m_daemonProcess->setChildProcessModifier([childFd, parentFd]() {
             ::close(parentFd);
-            int flags = fcntl(childFd, F_GETFD);
+            const int flags = fcntl(childFd, F_GETFD);
             if (flags >= 0) {
                 fcntl(childFd, F_SETFD, flags & ~FD_CLOEXEC);
             }
@@ -139,7 +139,7 @@ bool DaemonConnector::ensureDaemonRunning() {
             continue;
         }
         if (m_daemonProcess->waitForFinished(50)) {
-            QByteArray output = m_daemonProcess->readAll();
+            const QByteArray output = m_daemonProcess->readAll();
             lastCapturedError = QString::fromUtf8(output).trimmed();
             if (lastCapturedError.isEmpty()) {
                 lastCapturedError = daemonExecutable + u" exited immediately with exit code "_s +
@@ -208,7 +208,7 @@ bool DaemonConnector::sendCommand(keyinjectord::Opcode opcode, int timeoutMs) {
     }
 
     const char byte = static_cast<char>(opcode);
-    qint64 written = m_socket->write(&byte, 1);
+    const qint64 written = m_socket->write(&byte, 1);
     if (written != 1) {
         setLastError(u"Failed to write opcode to socket"_s);
         return false;
@@ -262,8 +262,8 @@ void DaemonConnector::onErrorOccurred(QLocalSocket::LocalSocketError error) {
     Q_UNUSED(error)
     QString msg = m_socket->errorString();
     if (m_daemonProcess && m_daemonProcess->state() == QProcess::NotRunning) {
-        QByteArray output = m_daemonProcess->readAll();
-        QString procErr = QString::fromUtf8(output).trimmed();
+        const QByteArray output = m_daemonProcess->readAll();
+        const QString procErr = QString::fromUtf8(output).trimmed();
         if (!procErr.isEmpty()) {
             msg = procErr;
             setFatalError(true, msg);

@@ -1,10 +1,13 @@
 #include "AbstractTextInjector.h"
 #include "AudioRecorder.h"
 #include "DictationCoordinator.h"
+#include "ModelService.h"
 #include "GroqLlmClient.h"
 #include "TranscriptionModel.h"
 
 #include "AbstractSttClient.h"
+#include "AbstractCloudSttClient.h"
+#include "AbstractOfflineSttClient.h"
 #include "ApiKeyStore.h"
 #include "AudioFeedbackPlayer.h"
 #include "CompositeSttEngine.h"
@@ -91,18 +94,17 @@ public:
     QByteArray m_pendingWavData;
 };
 
-class FakeSttClient : public AbstractSttClient {
+class FakeCloudSttClient : public AbstractCloudSttClient {
     Q_OBJECT
 
 public:
-    explicit FakeSttClient(QObject* parent = nullptr)
-        : AbstractSttClient(parent) {
+    explicit FakeCloudSttClient(QObject* parent = nullptr)
+        : AbstractCloudSttClient(parent) {
         m_isReady = true;
         m_isBusy = false;
     }
 
     bool isReady() const override { return m_isReady; }
-
     bool isBusy() const override { return m_isBusy; }
 
     void transcribe(const QByteArray& audioData) override {
@@ -129,7 +131,68 @@ public:
     }
 
     void activate() override { m_activateCalled = true; }
+    void deactivate() override { m_deactivateCalled = true; }
 
+    bool m_isReady = true;
+    bool m_isBusy = false;
+    QByteArray m_lastTranscribeAudio;
+    int m_transcribeCallCount = 0;
+    bool m_cancelCalled = false;
+    bool m_activateCalled = false;
+    bool m_deactivateCalled = false;
+    bool m_autoRespond = true;
+    bool m_failNext = false;
+    QString m_simulatedText;
+    QString m_simulatedError;
+};
+
+class FakeOfflineSttClient : public AbstractOfflineSttClient {
+    Q_OBJECT
+
+public:
+    explicit FakeOfflineSttClient(QObject* parent = nullptr)
+        : AbstractOfflineSttClient(parent) {
+        m_isReady = true;
+        m_isBusy = false;
+    }
+
+    bool isReady() const override { return m_isReady; }
+    bool isBusy() const override { return m_isBusy; }
+
+    bool isModelInstalled() const override { return true; }
+    bool isModelLoaded() const override { return true; }
+    QString modelPath() const override { return {}; }
+    QString loadedModelPath() const override { return {}; }
+    QString computeDevice() const override { return {}; }
+
+    void loadModel(const QString&) override {}
+    void unloadModel() override {}
+    void checkModelStatus() override {}
+
+    void transcribe(const QByteArray& audioData) override {
+        m_lastTranscribeAudio = audioData;
+        m_transcribeCallCount++;
+        m_isBusy = true;
+        emit busyChanged();
+
+        if (m_autoRespond) {
+            m_isBusy = false;
+            emit busyChanged();
+            if (m_failNext) {
+                emit errorOccurred(m_simulatedError.isEmpty() ? u"Inference failed"_s : m_simulatedError);
+            } else {
+                emit transcriptionReady(m_simulatedText.isEmpty() ? u"Transcribed text"_s : m_simulatedText);
+            }
+        }
+    }
+
+    void cancel() override {
+        m_cancelCalled = true;
+        m_isBusy = false;
+        emit busyChanged();
+    }
+
+    void activate() override { m_activateCalled = true; }
     void deactivate() override { m_deactivateCalled = true; }
 
     bool m_isReady = true;
@@ -199,6 +262,7 @@ private slots:
     void testRecordingNoMicrophone();
     void testLlmEnhancementFlow();
     void testLlmEnhancementErrorFallback();
+    void testBackendChangeDuringEnhancingPreservesRawText();
     void testCancelDictation();
     void testRetryTranscription();
     void testMaxDurationSafety();
@@ -224,8 +288,8 @@ private:
     SystemHealthMonitor* m_healthMonitor = nullptr;
     AudioFeedbackPlayer* m_feedbackPlayer = nullptr;
     FakeAudioRecorder* m_recorder = nullptr;
-    FakeSttClient* m_whisperClient = nullptr;
-    FakeSttClient* m_groqClient = nullptr;
+    FakeOfflineSttClient* m_whisperClient = nullptr;
+    FakeCloudSttClient* m_groqClient = nullptr;
     GroqLlmClient* m_llmClient = nullptr;
     ApiKeyStore* m_keyStore = nullptr;
     FakeShortcutManager* m_shortcutMgr = nullptr;
@@ -255,8 +319,8 @@ void TestDictationCoordinator::init() {
     m_healthMonitor->setNetworkOnlineForTesting(true);
     m_feedbackPlayer = new AudioFeedbackPlayer(this);
     m_recorder = new FakeAudioRecorder(this);
-    m_whisperClient = new FakeSttClient(this);
-    m_groqClient = new FakeSttClient(this);
+    m_whisperClient = new FakeOfflineSttClient(this);
+    m_groqClient = new FakeCloudSttClient(this);
     m_keyStore = new ApiKeyStore(this);
     m_keyStore->setApiKey(u"gsk_mock_api_key_for_testing"_s);
     m_llmClient = new GroqLlmClient(this);
@@ -277,10 +341,6 @@ void TestDictationCoordinator::init() {
     m_presenter->setDictationCoordinator(m_coordinator);
     m_presenter->setAudioRecorder(m_recorder);
     m_presenter->setCompositeSttEngine(m_sttEngine);
-
-    connect(m_presenter, &NotificationPresenter::requestNavigate, m_coordinator,
-            &DictationCoordinator::navigateToSection);
-    connect(m_presenter, &NotificationPresenter::requestShowWindow, m_coordinator, &DictationCoordinator::showWindow);
 
     connect(m_coordinator, &DictationCoordinator::transcriptionFinished, m_historyModel,
             &TranscriptionModel::addRecord);
@@ -419,6 +479,30 @@ void TestDictationCoordinator::testLlmEnhancementErrorFallback() {
     QCOMPARE(finishSpy.count(), 1);
     QCOMPARE(finishSpy.first().at(0).toString(), u"Raw whisper transcript"_s);
     QCOMPARE(m_coordinator->dictationState(), DictationCoordinator::DictationState::Idle);
+}
+
+void TestDictationCoordinator::testBackendChangeDuringEnhancingPreservesRawText() {
+    m_coordinator->setActiveBackend(DictationCoordinator::TranscriptionBackend::Cloud);
+    m_llmClient->setEnabled(true);
+    m_groqClient->m_autoRespond = true;
+    m_groqClient->m_simulatedText = u"Raw transcript before network drop"_s;
+
+    QSignalSpy finishSpy(m_coordinator, &DictationCoordinator::transcriptionFinished);
+
+    m_coordinator->startRecording();
+    m_coordinator->stopRecording();
+
+    QCOMPARE(m_coordinator->dictationState(), DictationCoordinator::DictationState::Enhancing);
+
+    // Backend switches while LLM is enhancing (e.g. network dropped causing fallback or user switched backend)
+    m_coordinator->setActiveBackend(DictationCoordinator::TranscriptionBackend::WhisperCpp);
+
+    // Raw text should be preserved and emitted, and state returned to Idle
+    QCOMPARE(finishSpy.count(), 1);
+    QCOMPARE(finishSpy.first().at(0).toString(), u"Raw transcript before network drop"_s);
+    QCOMPARE(m_coordinator->dictationState(), DictationCoordinator::DictationState::Idle);
+    QCOMPARE(m_coordinator->lastTranscription(), u"Raw transcript before network drop"_s);
+    QCOMPARE(m_injector->m_injectedText, u"Raw transcript before network drop"_s);
 }
 
 void TestDictationCoordinator::testCancelDictation() {
@@ -616,7 +700,7 @@ void TestDictationCoordinator::testHistoryFilePermissionsAndSessionCleanup() {
     QVERIFY(!perms.testFlag(QFileDevice::ReadOther));
     QVERIFY(!perms.testFlag(QFileDevice::WriteOther));
 
-    m_coordinator->quitApp();
+    DictationCoordinator::removeHistoryFile();
     QVERIFY(!QFile::exists(path));
 }
 
@@ -670,30 +754,22 @@ void TestDictationCoordinator::testNotificationIntegration() {
     m_recorder->setMockHasAudioInputDevice(true);
     QVERIFY(m_coordinator->lastError().isEmpty());
 
-    QSignalSpy navSpy(m_coordinator, &DictationCoordinator::requestNavigate);
+    QSignalSpy navSpy(m_presenter, &NotificationPresenter::requestNavigate);
     m_notificationService->onActionInvoked(100, u"settings"_s);
     QCOMPARE(navSpy.count(), 1);
     QCOMPARE(navSpy.first().at(0).toString(), u"system"_s);
 }
 
 void TestDictationCoordinator::testModelControlMethods() {
-    QVERIFY(!m_coordinator->isModelLoaded());
-    QVERIFY(!m_coordinator->isModelBusy());
-    QVERIFY(m_coordinator->loadedModelPath().isEmpty());
+    ModelService modelService;
 
-    m_coordinator->loadModel();
-    m_coordinator->unloadModel();
-    m_coordinator->checkModelStatus();
+    QVERIFY(!modelService.isModelLoaded());
+    QVERIFY(!modelService.isModelBusy());
+    QVERIFY(modelService.loadedModelPath().isEmpty());
 
-    m_coordinator->startRecording();
-    QVERIFY(m_coordinator->recording());
-    QVERIFY(m_coordinator->isModelBusy());
-
-    m_coordinator->unloadModel();
-    m_coordinator->loadModel();
-    QVERIFY(m_coordinator->recording());
-
-    m_coordinator->stopRecording();
+    modelService.loadModel();
+    modelService.unloadModel();
+    modelService.checkModelStatus();
 }
 
 int main(int argc, char* argv[]) {

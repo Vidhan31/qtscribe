@@ -93,7 +93,7 @@ void TestStatusNotifier::testRegistrationAndProperties() {
 }
 
 void TestStatusNotifier::testActivation() {
-    QSignalSpy showSpy(m_coordinator, &DictationCoordinator::requestShowWindow);
+    QSignalSpy showSpy(m_service, &StatusNotifierService::requestShowWindow);
     QVERIFY(showSpy.isValid());
 
     QDBusInterface sniInterface(m_service->serviceName(), u"/StatusNotifierItem"_s, u"org.kde.StatusNotifierItem"_s,
@@ -114,11 +114,11 @@ void TestStatusNotifier::testDBusMenuLayoutAndEvents() {
     uint rev = m_service->revision();
     QVERIFY(rev >= 1);
 
-    QSignalSpy showSpy(m_coordinator, &DictationCoordinator::requestShowWindow);
+    QSignalSpy showSpy(m_service, &StatusNotifierService::requestShowWindow);
     menuInterface.call(u"Event"_s, 1, u"clicked"_s, QVariant::fromValue(QDBusVariant(0)), 0u);
     QCOMPARE(showSpy.count(), 1);
 
-    QSignalSpy quitSpy(m_coordinator, &DictationCoordinator::requestQuitApp);
+    QSignalSpy quitSpy(m_service, &StatusNotifierService::requestQuitApp);
     menuInterface.call(u"Event"_s, 3, u"clicked"_s, QVariant::fromValue(QDBusVariant(0)), 0u);
     QCOMPARE(quitSpy.count(), 1);
 }

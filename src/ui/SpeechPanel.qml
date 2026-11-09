@@ -31,7 +31,7 @@ Item {
     ClipboardWarningDialog {
         id: clipboardWarningDialog
         onAccepted: {
-            DictationCoordinator.startRecording();
+            DaemonClient.startRecording();
         }
     }
 

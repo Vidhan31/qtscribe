@@ -1,16 +1,13 @@
 #include "TranscriptionModel.h"
 
-#include "ClipboardManager.h"
-#include "DictationCoordinator.h"
-
 #include "DaemonClient.h"
 
+#include <QClipboard>
 #include <QFile>
+#include <QGuiApplication>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
-#include <QLockFile>
-#include <QStandardPaths>
 #include <QUuid>
 
 using namespace Qt::StringLiterals;
@@ -27,7 +24,7 @@ int TranscriptionSourceModel::rowCount(const QModelIndex& parent) const {
 
 QVariant TranscriptionSourceModel::data(const QModelIndex& index, int role) const {
     if (!index.isValid() || index.row() < 0 || index.row() >= m_records.size()) {
-        return QVariant();
+        return {};
     }
 
     const auto& record = m_records.at(index.row());
@@ -41,7 +38,7 @@ QVariant TranscriptionSourceModel::data(const QModelIndex& index, int role) cons
         case Roles::TextRole:
             return record.text;
     }
-    return QVariant();
+    return {};
 }
 
 QHash<int, QByteArray> TranscriptionSourceModel::roleNames() const {
@@ -120,49 +117,33 @@ TranscriptionModel::TranscriptionModel(QObject* parent)
     connect(&m_sourceModel, &TranscriptionSourceModel::rowsRemoved, this, &TranscriptionModel::countChanged);
     connect(&m_sourceModel, &TranscriptionSourceModel::modelReset, this, &TranscriptionModel::countChanged);
 
-    loadHistory();
-
     if (auto* client = DaemonClient::instance()) {
         connect(client, &DaemonClient::transcriptionFinished, this, &TranscriptionModel::addRecord);
         connect(client, &DaemonClient::historyCleared, this, [this]() { m_sourceModel.clearAll(); });
+        connect(client, &DaemonClient::historyChanged, this, [this]() {
+            if (auto* c = DaemonClient::instance()) {
+                loadFromJson(c->historyJson());
+            }
+        });
+        if (client->isConnected()) {
+            loadFromJson(client->historyJson());
+        }
     }
 }
 
-void TranscriptionModel::loadHistory(const QString& filePath) {
-    QString resolvedPath = filePath;
-    if (resolvedPath.isEmpty()) {
-        if (QStandardPaths::isTestModeEnabled()) {
-            return;
-        }
-        resolvedPath = DictationCoordinator::historyFilePath();
-    }
-
-    QLockFile lock(resolvedPath + u".lock"_s);
-    lock.setStaleLockTime(5000);
-    const bool locked = lock.tryLock(2000);
-
-    QFile file(resolvedPath);
-    if (file.exists()) {
-        file.setPermissions(QFileDevice::ReadOwner | QFileDevice::WriteOwner);
-    }
-    if (!file.open(QIODevice::ReadOnly)) {
-        if (locked) {
-            lock.unlock();
-        }
+void TranscriptionModel::loadFromJson(const QString& json) {
+    if (json.trimmed().isEmpty()) {
         return;
     }
 
-    const QJsonDocument doc = QJsonDocument::fromJson(file.readAll());
-    file.close();
-    if (locked) {
-        lock.unlock();
-    }
+    const QJsonDocument doc = QJsonDocument::fromJson(json.toUtf8());
     if (!doc.isArray()) {
         return;
     }
 
     QList<TranscriptionRecord> loadedRecords;
     const QJsonArray arr = doc.array();
+    loadedRecords.reserve(arr.size());
     for (const auto val : arr) {
         if (!val.isObject()) {
             continue;
@@ -185,6 +166,30 @@ void TranscriptionModel::loadHistory(const QString& filePath) {
     }
 
     m_sourceModel.setRecords(loadedRecords);
+}
+
+void TranscriptionModel::loadHistory(const QString& filePath) {
+    if (filePath.isEmpty()) {
+        if (auto* client = DaemonClient::instance()) {
+            if (client->isConnected()) {
+                loadFromJson(client->historyJson());
+            }
+        }
+        return;
+    }
+
+    if (filePath.trimmed().startsWith(u'[')) {
+        loadFromJson(filePath);
+        return;
+    }
+
+    QFile file(filePath);
+    if (!file.open(QIODevice::ReadOnly)) {
+        return;
+    }
+    const QString content = QString::fromUtf8(file.readAll());
+    file.close();
+    loadFromJson(content);
 }
 
 int TranscriptionModel::count() const {
@@ -222,21 +227,20 @@ void TranscriptionModel::clearAll() {
     auto* client = DaemonClient::instance();
     if (client && client->isConnected()) {
         client->clearHistory();
-    } else {
-        DictationCoordinator::removeHistoryFile();
     }
 }
 
 void TranscriptionModel::copyToClipboard(const QString& text) {
-    ClipboardManager clipboardManager;
-    clipboardManager.setText(text, false);
+    if (auto* clipboard = QGuiApplication::clipboard()) {
+        clipboard->setText(text);
+    }
 }
 
 bool TranscriptionModel::filterAcceptsRow(int sourceRow, const QModelIndex& sourceParent) const {
     if (m_searchFilter.isEmpty()) {
         return true;
     }
-    QModelIndex index = m_sourceModel.index(sourceRow, 0, sourceParent);
-    QString text = m_sourceModel.data(index, static_cast<int>(Roles::TextRole)).toString();
+    const QModelIndex index = m_sourceModel.index(sourceRow, 0, sourceParent);
+    const QString text = m_sourceModel.data(index, static_cast<int>(Roles::TextRole)).toString();
     return text.contains(m_searchFilter, Qt::CaseInsensitive);
 }

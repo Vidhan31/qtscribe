@@ -5,36 +5,35 @@
 #include <QAbstractListModel>
 #include <QList>
 #include <QString>
-#include <QtQmlIntegration/qqmlintegration.h>
 
 #include <cstdint>
 #include <memory>
 #include <optional>
 
+class SettingsManager;
+
 struct WhisperModelItem {
-    QString id = {};
-    QString name = {};
-    QString fileName = {};
-    QString downloadUrl = {};
+    QString id;
+    QString name;
+    QString fileName;
+    QString downloadUrl;
     qint64 sizeBytes = 0;
-    QString sizeFormatted = {};
-    QString memoryFormatted = {};
-    QString description = {};
+    QString sizeFormatted;
+    QString memoryFormatted;
+    QString description;
     bool isInstalled = false;
     qint64 installedSizeBytes = 0;
-    QString installedSizeFormatted = {};
+    QString installedSizeFormatted;
 
     bool isDownloading = false;
     qreal progress = 0.0;
     qint64 bytesReceived = 0;
     qint64 totalBytes = 0;
-    QString speedFormatted = {};
+    QString speedFormatted;
 };
 
 class WhisperModelManager : public QAbstractListModel {
     Q_OBJECT
-    QML_ELEMENT
-    QML_SINGLETON
 
     Q_PROPERTY(QString modelsDirectory READ modelsDirectory CONSTANT FINAL)
     Q_PROPERTY(QString selectedModelId READ selectedModelId WRITE setSelectedModelId NOTIFY selectedModelChanged FINAL)
@@ -85,6 +84,9 @@ public:
     QString modelsDirectory() const;
     void setModelsDirectory(const QString& path);
 
+    void setSettingsManager(SettingsManager* settings);
+    [[nodiscard]] SettingsManager* settingsManager() const noexcept;
+
     const QList<WhisperModelItem>& models() const;
     std::optional<WhisperModelItem> model(const QString& modelId) const;
     int modelCount() const;
@@ -119,7 +121,7 @@ public:
     Q_INVOKABLE void checkDiskSpace();
     void loadSettings();
     void scanInstalledModels();
-    void cleanupOrphanedPartFiles();
+    void cleanupOrphanedPartFiles() const;
 
 signals:
     void modelsChanged();
@@ -140,6 +142,7 @@ private:
     QList<WhisperModelItem> m_models;
     QString m_customModelsDirectory;
     QString m_selectedModelId;
+    SettingsManager* m_settingsManager = nullptr;
     QString m_lastError;
     qint64 m_availableDiskSpace = 0;
 };
