@@ -1,0 +1,99 @@
+name: CodeQL
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
+      - 'CMakePresets.json'
+      - '.github/workflows/codeql.yml'
+      - '.github/codeql/**'
+      - '.github/actions/setup-build-deps/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'cmake/**'
+      - 'CMakeLists.txt'
+      - 'CMakePresets.json'
+      - '.github/workflows/codeql.yml'
+      - '.github/codeql/**'
+      - '.github/actions/setup-build-deps/**'
+  schedule:
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: CodeQL Analysis (C++)
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+
+      - name: Install Qt 6.11.1
+        uses: jurplel/install-qt-action@b344308e4483fc892e0d27b3cd1b173ebdd95f06 # v4.5.0
+        with:
+          version: '6.11.1'
+          arch: 'linux_gcc_64'
+          modules: 'qtmultimedia'
+          cache: true
+          setup-python: false
+          aqtversion: '==3.3.0'
+
+      - name: Install build dependencies
+        uses: ./.github/actions/setup-build-deps
+
+      - name: Configure CMake
+        run: |
+          cmake -B ../build -S . -GNinja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="${QT_ROOT_DIR};/usr/lib/x86_64-linux-gnu" \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DENABLE_QT_DEPLOYMENT=OFF \
+            -DBUILD_KEYINJECTORD=ON
+
+      - name: Pre-build third-party dependencies (excluded from CodeQL tracing)
+        run: |
+          ninja -C ../build whisper
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          languages: c-cpp
+          queries: ${{ github.event_name == 'pull_request' && 'security-extended' || '+security-and-quality' }}
+          config-file: .github/codeql/codeql-config.yml
+
+      - name: Build C++ targets for CodeQL
+        run: |
+          ninja -C ../build qtscribe_core keyinjectord qtscribe
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          category: "/language:c-cpp"

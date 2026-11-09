@@ -1,0 +1,47 @@
+{
+    "$schema": "https://cmake.org/cmake/help/latest/_downloads/schema.json",
+    "version": 8,
+    "configurePresets": [
+        {
+            "name": "keyinjectord-debug",
+            "displayName": "keyinjectord Debug",
+            "generator": "Ninja",
+            "binaryDir": "${fileDir}/../../build-keyinjectord",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            }
+        },
+        {
+            "name": "keyinjectord-release",
+            "displayName": "keyinjectord Release",
+            "generator": "Ninja",
+            "binaryDir": "${fileDir}/../../build-keyinjectord-release",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "keyinjectord-relwithdebinfo",
+            "displayName": "keyinjectord RelWithDebInfo",
+            "generator": "Ninja",
+            "binaryDir": "${fileDir}/../../build-keyinjectord-relwithdebinfo",
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "RelWithDebInfo"
+            }
+        }
+    ],
+    "buildPresets": [
+        {
+            "name": "build-keyinjectord-debug",
+            "configurePreset": "keyinjectord-debug"
+        },
+        {
+            "name": "build-keyinjectord-release",
+            "configurePreset": "keyinjectord-release"
+        },
+        {
+            "name": "build-keyinjectord-relwithdebinfo",
+            "configurePreset": "keyinjectord-relwithdebinfo"
+        }
+    ]
+}

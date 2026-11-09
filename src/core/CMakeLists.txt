@@ -1,0 +1,125 @@
+add_library(qtscribe_core STATIC
+    ApplicationContext.h
+    ApplicationContext.cpp
+    AbstractSttClient.h
+    AbstractSttClient.cpp
+    AbstractCloudSttClient.h
+    AbstractCloudSttClient.cpp
+    AbstractOfflineSttClient.h
+    AbstractOfflineSttClient.cpp
+    AbstractLlmClient.h
+    AbstractLlmClient.cpp
+    AudioFeedbackPlayer.h
+    AudioFeedbackPlayer.cpp
+    AudioRecorder.h
+    AudioRecorder.cpp
+    GlobalShortcutManager.h
+    GlobalShortcutManager.cpp
+    ApiKeyStore.h
+    ApiKeyStore.cpp
+    CloudResponseParser.h
+    CloudResponseParser.cpp
+    HttpRequestRunner.h
+    HttpRequestRunner.cpp
+    NetworkTlsHelper.h
+    NetworkTlsHelper.cpp
+    GroqSttClient.h
+    GroqSttClient.cpp
+    GeminiSttClient.h
+    GeminiSttClient.cpp
+    CloudSttRouter.h
+    CloudSttRouter.cpp
+    WavDecoder.h
+    WavDecoder.cpp
+    WhisperWorker.h
+    WhisperWorker.cpp
+    WhisperSttClient.h
+    WhisperSttClient.cpp
+    ModelDownloader.h
+    ModelDownloader.cpp
+    WhisperModelManager.h
+    WhisperModelManager.cpp
+    GroqLlmClient.h
+    GroqLlmClient.cpp
+    ClipboardManager.h
+    ClipboardManager.cpp
+    DaemonConnector.h
+    DaemonConnector.cpp
+    SystemHealthMonitor.h
+    SystemHealthMonitor.cpp
+    AbstractTextInjector.h
+    AbstractTextInjector.cpp
+    TextInjector.h
+    TextInjector.cpp
+    CompositeSttEngine.h
+    CompositeSttEngine.cpp
+    NotificationPresenter.h
+    NotificationPresenter.cpp
+    HistoryRepository.h
+    HistoryRepository.cpp
+    DictationCoordinator.h
+    DictationCoordinator.cpp
+    SettingsManager.h
+    SettingsManager.cpp
+    SettingsService.h
+    SettingsService.cpp
+    SettingsAdaptor.h
+    SettingsAdaptor.cpp
+    ModelService.h
+    ModelService.cpp
+    SystemService.h
+    SystemService.cpp
+    SpeechAdaptor.h
+    SpeechAdaptor.cpp
+    ModelAdaptor.h
+    ModelAdaptor.cpp
+    SystemAdaptor.h
+    SystemAdaptor.cpp
+    DBusService.h
+    DBusService.cpp
+    LoggingCategories.h
+    LoggingCategories.cpp
+    StatusNotifierService.h
+    StatusNotifierService.cpp
+    LinuxNotificationService.h
+    LinuxNotificationService.cpp
+)
+
+target_include_directories(qtscribe_core
+    PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_SOURCE_DIR}/src
+    SYSTEM PUBLIC
+        ${whisper_SOURCE_DIR}/include
+        ${whisper_SOURCE_DIR}/ggml/include
+        ${whisper_SOURCE_DIR}/examples
+)
+
+target_link_libraries(qtscribe_core
+    PUBLIC
+        whisper
+        Qt6::Core
+        Qt6::Network
+        Qt6::Multimedia
+        Qt6::DBus
+        Qt6Keychain::Qt6Keychain
+    PRIVATE
+        qtscribe::compiler_flags
+)
+
+if(GGML_VULKAN AND TARGET Vulkan::Vulkan)
+    target_link_libraries(qtscribe_core PRIVATE Vulkan::Vulkan)
+endif()
+
+target_compile_definitions(qtscribe_core
+    PRIVATE
+        QTSCRIBE_VERSION="${PROJECT_VERSION}"
+)
+
+qt_add_resources(qtscribe_core "qtscribe_core_audio_assets"
+    PREFIX "/qt/qml/QtScribe/assets"
+    BASE "${CMAKE_SOURCE_DIR}/assets"
+    FILES
+        ${CMAKE_SOURCE_DIR}/assets/chime_start.wav
+        ${CMAKE_SOURCE_DIR}/assets/chime_stop.wav
+)

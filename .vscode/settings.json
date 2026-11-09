@@ -1,0 +1,18 @@
+{
+    "cmake.options.statusBarVisibility": "visible",
+    "cmake.buildDirectory": "${workspaceFolder}/builds/${buildKit}/${buildType}",
+    "editor.formatOnSave": true,
+    "editor.trimAutoWhitespace": true,
+    "[cpp]": {
+        "editor.defaultFormatter": "ms-vscode.cpptools",
+        "editor.tabSize": 4
+    },
+    "[qml]": {
+        "editor.tabSize": 4
+    },
+    "[cmake]": {
+        "editor.tabSize": 4
+    },
+    "C_Cpp.formatting": "clangFormat",
+    "C_Cpp.clang_format_style": "file"
+}

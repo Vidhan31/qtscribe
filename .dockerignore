@@ -1,0 +1,10 @@
+build/
+build-*/
+dist/
+.git/
+.agents/
+.vscode/
+skills-lock.json
+*.tar.gz
+*.deb
+*.rpm

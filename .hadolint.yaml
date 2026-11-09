@@ -1,0 +1,8 @@
+ignored:
+  - DL3008  # Pin versions in apt get install
+  - DL3013  # Pin versions in pip
+  - DL3041  # Specify version with dnf install
+  - DL3002  # Last USER should not be root (builder stage validates system package install)
+  - DL3066  # Non-numeric user-id
+  - DL4006  # Set the SHELL option -o pipefail
+  - SC2086  # Double quote to prevent globbing in internal shell script snippets
