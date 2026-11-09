@@ -76,7 +76,6 @@ int SettingsManager::validateInjectionDelay(int delayMs) {
 void SettingsManager::load() {
     const QSettings settings;
 
-    // Speech
     SpeechConfig newSpeech;
     const QString backendStr = settings.value(SettingsKeys::kSpeechBackend.toString(), u"Cloud"_s).toString();
     newSpeech.backend =
@@ -85,21 +84,18 @@ void SettingsManager::load() {
     newSpeech.recordingMode = (modeStr == u"PushToTalk"_s) ? RecordingMode::PushToTalk : RecordingMode::Toggle;
     newSpeech.autoSwitchOffline = settings.value(SettingsKeys::kSpeechAutoSwitchOffline.toString(), true).toBool();
 
-    // Groq STT
     GroqSttConfig newGroq;
     newGroq.model =
         validateGroqModel(settings.value(SettingsKeys::kGroqModel.toString(), u"whisper-large-v3-turbo"_s).toString());
     newGroq.language = settings.value(SettingsKeys::kGroqLanguage.toString(), QString()).toString();
     newGroq.customPrompt = settings.value(SettingsKeys::kGroqCustomPrompt.toString(), QString()).toString();
 
-    // Gemini STT
     GeminiSttConfig newGemini;
     newGemini.model = validateGeminiModel(
         settings.value(SettingsKeys::kGeminiModel.toString(), u"gemini-3.5-transcribe"_s).toString());
     newGemini.mode = validateGeminiMode(settings.value(SettingsKeys::kGeminiMode.toString(), u"smart"_s).toString());
     newGemini.customVocabulary = settings.value(SettingsKeys::kGeminiCustomVocabulary.toString(), QString()).toString();
 
-    // LLM
     LlmConfig newLlm;
     newLlm.enabled = settings.value(SettingsKeys::kGroqLlmEnabled.toString(), false).toBool();
     newLlm.model =
@@ -109,26 +105,21 @@ void SettingsManager::load() {
     newLlm.temperature =
         validateLlmTemperature(settings.value(SettingsKeys::kGroqLlmTemperature.toString(), 0.1).toDouble());
 
-    // Text Injector
     TextInjectorConfig newInjector;
     newInjector.preventClipboardHistory =
         settings.value(SettingsKeys::kClipboardPreventHistory.toString(), true).toBool();
     newInjector.injectionDelayMs =
         validateInjectionDelay(settings.value(SettingsKeys::kTypingPreInjectionDelayMs.toString(), 200).toInt());
 
-    // Audio Feedback
     AudioFeedbackConfig newAudio;
     newAudio.soundEnabled = settings.value(SettingsKeys::kAudioSoundEnabled.toString(), true).toBool();
 
-    // Notifications
     NotificationConfig newNotify;
     newNotify.notificationsEnabled = settings.value(SettingsKeys::kNotificationsEnabled.toString(), true).toBool();
 
-    // Cloud Router
     CloudRouterConfig newCloud;
     newCloud.activeProvider = settings.value(SettingsKeys::kCloudActiveProvider.toString(), u"groq"_s).toString();
 
-    // Whisper Model
     WhisperConfig newWhisper;
     newWhisper.selectedModel = settings.value(SettingsKeys::kWhisperSelectedModel.toString(), QString()).toString();
 
@@ -622,7 +613,6 @@ void SettingsManager::setSetting(const QString& key, const QVariant& value) {
     } else if (key == SettingsKeys::kWhisperSelectedModel) {
         setWhisperSelectedModel(value.toString());
     } else {
-        // Generic fallback for any other setting
         QSettings settings;
         settings.setValue(key, value);
         settings.sync();
