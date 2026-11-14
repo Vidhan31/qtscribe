@@ -40,7 +40,8 @@ Text {
         return Font.Normal;
     }
 
-    font.family: root.fontFamily === "mono" ? "Monospace" : ""
+    font.family: root.fontFamily === "mono" ? "monospace" : (root.fontFamily === "sans" ? "sans-serif" :
+                                                                                          root.fontFamily)
 
     linkColor: Theme.accentColor
 

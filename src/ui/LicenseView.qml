@@ -1,6 +1,6 @@
 pragma ComponentBehavior: Bound
 import QtQuick
-import QtQuick.Templates as T
+import QtQuick.Controls
 import QtQuick.Layouts
 import QtScribe
 import "controls"
@@ -40,25 +40,32 @@ Item {
             padding: 0
             clip: true
 
-            T.ScrollView {
-                id: licenseScrollView
+            Flickable {
+                id: licenseFlickable
                 Layout.fillWidth: true
                 Layout.fillHeight: true
+                contentWidth: width
+                contentHeight: licenseTextEdit.implicitHeight
                 clip: true
+                boundsBehavior: Flickable.StopAtBounds
 
-                T.TextArea {
-                    id: licenseTextArea
+                ScrollBar.vertical: ScrollBar {
+                    policy: ScrollBar.AsNeeded
+                }
+
+                TextEdit {
+                    id: licenseTextEdit
+                    width: licenseFlickable.width
                     readOnly: true
                     selectByMouse: true
                     text: LicenseHelper.licenseText
                     textFormat: Text.PlainText
-                    wrapMode: TextArea.Wrap
+                    wrapMode: Text.WordWrap
                     font.family: "Monospace"
                     font.pixelSize: Theme.fontSizeCaption
                     color: Theme.textPrimary
                     selectionColor: Theme.accentColor
                     selectedTextColor: Theme.textOnAccent
-                    background: null
                     padding: Theme.spacingMd
                 }
             }
