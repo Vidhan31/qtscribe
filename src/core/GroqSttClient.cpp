@@ -13,13 +13,10 @@
 #include <QHttpHeaders>
 #include <QHttpMultiPart>
 #include <QHttpPart>
-#include <QJsonDocument>
-#include <QJsonObject>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
 #include <QSettings>
-#include <QTimer>
 
 #include <memory>
 
@@ -41,38 +38,10 @@ QString groqUserAgent() {
 } // namespace
 
 GroqSttClient::GroqSttClient(QObject* parent)
-    : AbstractCloudSttClient(parent)
-    , m_nam(new QNetworkAccessManager(this))
-    , m_retryCountdownTimer(new QTimer(this))
-    , m_retryTimer(new QTimer(this)) {
+    : BaseCloudSttClient(u"Groq STT"_s, u"Groq"_s, 15s, parent) {
     if (!s_groqInstance) {
         s_groqInstance = this;
     }
-    NetworkTlsHelper::ensureSystemProxyConfigured();
-
-    m_nam->setTransferTimeout(15s);
-    connect(m_nam, &QNetworkAccessManager::sslErrors, this,
-            [](QNetworkReply* /*reply*/, const QList<QSslError>& errors) {
-                for (const auto& err : errors) {
-                    qWarning() << "GroqSttClient SSL Error:" << err.errorString();
-                }
-            });
-
-    m_retryCountdownTimer->setInterval(1s);
-    connect(m_retryCountdownTimer, &QTimer::timeout, this, [this]() {
-        if (m_retrySecondsRemaining > 0) {
-            setRetrySecondsRemaining(m_retrySecondsRemaining - 1);
-        } else {
-            m_retryCountdownTimer->stop();
-        }
-    });
-
-    m_retryTimer->setSingleShot(true);
-    connect(m_retryTimer, &QTimer::timeout, this, [this]() {
-        if (!m_cancelled && !m_lastWavData.isEmpty()) {
-            sendTranscribeRequest();
-        }
-    });
 
     auto* defaultStore = new ApiKeyStore(this);
     defaultStore->setStorageKeys(u"QtScribe"_s, u"groq_api_key"_s, SettingsKeys::kGroqSettingsKey.toString());
@@ -124,10 +93,6 @@ void GroqSttClient::setSettingsManager(SettingsManager* settings) {
     loadSettings();
 }
 
-SettingsManager* GroqSttClient::settingsManager() const noexcept {
-    return m_settingsManager;
-}
-
 void GroqSttClient::loadSettings() {
     QString model = kDefaultModel.toString();
     QString lang;
@@ -166,99 +131,6 @@ void GroqSttClient::loadSettings() {
     if (m_keyStore) {
         m_keyStore->loadApiKey();
     }
-}
-
-void GroqSttClient::setKeyStore(ApiKeyStore* store) {
-    if (m_keyStore == store) {
-        return;
-    }
-
-    const bool wasApiKeySet = isApiKeySet();
-    const bool wasKeyInvalid = isApiKeyInvalid();
-
-    if (m_keyStore) {
-        disconnect(m_keyStore, &ApiKeyStore::apiKeyChanged, this, &GroqSttClient::apiKeyChanged);
-        disconnect(m_keyStore, &ApiKeyStore::apiKeySetChanged, this, &GroqSttClient::onApiKeySetChanged);
-        if (m_ownsKeyStore && m_keyStore->parent() == this) {
-            m_keyStore->deleteLater();
-        }
-    }
-
-    m_keyStore = store;
-    m_ownsKeyStore = false;
-
-    if (m_keyStore) {
-        connect(m_keyStore, &ApiKeyStore::apiKeyChanged, this, &GroqSttClient::apiKeyChanged);
-        connect(m_keyStore, &ApiKeyStore::apiKeySetChanged, this, &GroqSttClient::onApiKeySetChanged);
-    }
-
-    if (isApiKeySet() != wasApiKeySet) {
-        emit apiKeySetChanged();
-        emit readyChanged();
-    }
-    if (isApiKeyInvalid() != wasKeyInvalid) {
-        emit isApiKeyInvalidChanged();
-    }
-}
-
-ApiKeyStore* GroqSttClient::keyStore() const {
-    return m_keyStore;
-}
-
-void GroqSttClient::setNetworkAccessManager(QNetworkAccessManager* nam) {
-    if (m_nam == nam) {
-        return;
-    }
-    if (m_nam && m_nam->parent() == this) {
-        m_nam->deleteLater();
-    }
-    m_nam = nam;
-}
-
-QString GroqSttClient::apiKey() const {
-    return m_keyStore ? m_keyStore->apiKey() : QString();
-}
-
-void GroqSttClient::setApiKey(const QString& key) {
-    if (m_keyStore) {
-        m_keyStore->setApiKey(key);
-    }
-}
-
-bool GroqSttClient::isApiKeySet() const {
-    return m_keyStore && m_keyStore->apiKeySet();
-}
-
-bool GroqSttClient::isApiKeyInvalid() const {
-    return isApiKeySet() && m_errorCategory == ErrorCategory::InvalidApiKey;
-}
-
-bool GroqSttClient::isRateLimited() const {
-    return m_errorCategory == ErrorCategory::RateLimited && m_retrySecondsRemaining > 0;
-}
-
-int GroqSttClient::retrySecondsRemaining() const {
-    return m_retrySecondsRemaining;
-}
-
-AbstractCloudSttClient::ErrorCategory GroqSttClient::errorCategory() const {
-    return m_errorCategory;
-}
-
-QString GroqSttClient::lastError() const {
-    return m_lastError;
-}
-
-bool GroqSttClient::isReady() const {
-    return isApiKeySet();
-}
-
-bool GroqSttClient::isBusy() const {
-    return m_busy;
-}
-
-bool GroqSttClient::isCancelled() const {
-    return m_cancelled;
 }
 
 QString GroqSttClient::selectedModel() const {
@@ -320,132 +192,9 @@ void GroqSttClient::setCustomPrompt(const QString& prompt) {
     }
 }
 
-void GroqSttClient::activate() {
-    if (m_keyStore) {
-        m_keyStore->ensureApiKeyLoaded();
-    }
-    emit readyChanged();
-}
-
-void GroqSttClient::deactivate() {
-    cancel();
-}
-
-void GroqSttClient::onApiKeySetChanged() {
-    const bool wasKeyInvalid = isApiKeyInvalid();
-    emit apiKeySetChanged();
-    if (isApiKeyInvalid() != wasKeyInvalid) {
-        emit isApiKeyInvalidChanged();
-    }
-    emit readyChanged();
-}
-
-void GroqSttClient::setBusy(bool busy) {
-    if (m_busy != busy) {
-        m_busy = busy;
-        emit busyChanged();
-    }
-}
-
-void GroqSttClient::setLastError(const QString& error, ErrorCategory category) {
-    if (m_lastError != error) {
-        m_lastError = error;
-        emit lastErrorChanged();
-    }
-    setErrorCategory(category);
-}
-
-void GroqSttClient::setErrorCategory(ErrorCategory category) {
-    if (m_errorCategory != category) {
-        const bool wasKeyInvalid = isApiKeyInvalid();
-        const bool wasRateLimited = isRateLimited();
-        m_errorCategory = category;
-        emit errorCategoryChanged();
-        if (isApiKeyInvalid() != wasKeyInvalid) {
-            emit isApiKeyInvalidChanged();
-        }
-        if (isRateLimited() != wasRateLimited) {
-            emit isRateLimitedChanged();
-        }
-    }
-}
-
-void GroqSttClient::setRetrySecondsRemaining(int seconds) {
-    if (m_retrySecondsRemaining != seconds) {
-        const bool wasRateLimited = isRateLimited();
-        m_retrySecondsRemaining = seconds;
-        emit retrySecondsRemainingChanged();
-        if (isRateLimited() != wasRateLimited) {
-            emit isRateLimitedChanged();
-        }
-    }
-}
-
-void GroqSttClient::cancel() {
-    const bool wasBusy = m_busy;
-    if (m_retryTimer) {
-        m_retryTimer->stop();
-    }
-    if (m_currentReply) {
-        m_currentReply->abort();
-        m_currentReply = nullptr;
-    }
-    m_cancelled = true;
-    m_retryCountdownTimer->stop();
-    setRetrySecondsRemaining(0);
-    m_lastWavData.clear();
-    m_retryCount = 0;
-    setBusy(false);
-    if (wasBusy) {
-        emit busyChanged();
-    }
-}
-
-void GroqSttClient::retryLast() {
-    if (!m_lastWavData.isEmpty() && !isBusy()) {
-        if (m_retryTimer) {
-            m_retryTimer->stop();
-        }
-        m_cancelled = false;
-        m_retryCount = 0;
-        sendTranscribeRequest();
-    }
-}
-
-void GroqSttClient::transcribe(const QByteArray& wavData) {
-    transcribe(wavData, u"audio.wav"_s);
-}
-
 void GroqSttClient::transcribe(const QByteArray& wavData, const QString& filename) {
-    if (isBusy()) {
-        qCDebug(lcNetwork) << "Groq STT: transcribe ignored, request already in progress";
-        setLastError(u"A transcription request is already in progress"_s, ErrorCategory::GeneralError);
-        return;
-    }
-
-    if (!isApiKeySet()) {
-        qWarning() << "Groq STT: Attempted transcribe without an API key";
-        setLastError(u"Groq API key is not set"_s, ErrorCategory::InvalidApiKey);
-        emit errorOccurred(m_lastError);
-        return;
-    }
-
-    if (wavData.isEmpty()) {
-        qWarning() << "Groq STT: Attempted transcribe with empty audio data";
-        setLastError(u"No audio data to transcribe"_s, ErrorCategory::GeneralError);
-        emit errorOccurred(m_lastError);
-        return;
-    }
-
-    if (m_retryTimer) {
-        m_retryTimer->stop();
-    }
-    m_cancelled = false;
-    m_retryCount = 0;
-    m_lastWavData = wavData;
     m_lastFilename = filename;
-
-    sendTranscribeRequest();
+    transcribe(wavData);
 }
 
 void GroqSttClient::sendTranscribeRequest() {
@@ -534,125 +283,7 @@ void GroqSttClient::sendTranscribeRequest() {
     });
 }
 
-bool GroqSttClient::shouldRetry(const CloudApiResponse& res) const {
-    if (m_cancelled || m_retryCount >= kMaxRetries || res.isSuccess) {
-        return false;
-    }
-    if (res.isRateLimited && res.retryAfterSeconds > 0 && res.retryAfterSeconds <= kMaxTransientRetryAfterSec) {
-        return true;
-    }
-    if (res.httpStatus >= 500 && res.httpStatus <= 599) {
-        return true;
-    }
-    switch (res.networkError) {
-        case QNetworkReply::RemoteHostClosedError:
-        case QNetworkReply::TemporaryNetworkFailureError:
-        case QNetworkReply::TimeoutError:
-        case QNetworkReply::NetworkSessionFailedError:
-            return true;
-        default:
-            break;
-    }
-    return false;
-}
-
-int GroqSttClient::calculateRetryDelayMs(const CloudApiResponse& res) {
-    if (res.isRateLimited && res.retryAfterSeconds > 0) {
-        return res.retryAfterSeconds * 1000;
-    }
-    return kDefaultDelayMs;
-}
-
-AbstractCloudSttClient::ErrorCategory GroqSttClient::classifyError(const CloudApiResponse& res, QString& outMessage) {
-    ErrorCategory cat = ErrorCategory::GeneralError;
-    outMessage = res.errorMessage;
-
-    if (res.httpStatus == 401 || res.httpStatus == 403 ||
-        outMessage.contains(u"API_KEY_INVALID"_s, Qt::CaseInsensitive) ||
-        outMessage.contains(u"Invalid API Key"_s, Qt::CaseInsensitive) ||
-        outMessage.contains(u"API key not valid"_s, Qt::CaseInsensitive)) {
-        cat = ErrorCategory::InvalidApiKey;
-        outMessage = u"Invalid API Key. Please check your Groq API key in Settings."_s;
-    } else if (res.isRateLimited) {
-        cat = ErrorCategory::RateLimited;
-    } else if (res.networkError == QNetworkReply::HostNotFoundError ||
-               res.networkError == QNetworkReply::ConnectionRefusedError ||
-               res.networkError == QNetworkReply::TimeoutError ||
-               res.networkError == QNetworkReply::NetworkSessionFailedError) {
-        cat = ErrorCategory::NetworkOffline;
-        outMessage = u"No internet connection. Please check your network and try again."_s;
-    }
-
-    return cat;
-}
-
-void GroqSttClient::handleApiResponse(const CloudApiResponse& res) {
-    m_currentReply = nullptr;
-
-    qCDebug(lcNetwork) << "Groq STT HTTP response received -> Status:" << res.httpStatus
-                       << "Elapsed time:" << res.latencyMs << "ms";
-
-    if (m_cancelled || res.networkError == QNetworkReply::OperationCanceledError) {
-        qCDebug(lcNetwork) << "Groq STT: Request cancelled/aborted, ignoring response";
-        if (m_retryTimer) {
-            m_retryTimer->stop();
-        }
-        setBusy(false);
-        return;
-    }
-
-    if (!res.isSuccess) {
-        if (shouldRetry(res) && !m_lastWavData.isEmpty()) {
-            ++m_retryCount;
-            const int delayMs = calculateRetryDelayMs(res);
-            qCDebug(lcNetwork) << "Groq STT: Transient error encountered (Status:" << res.httpStatus
-                               << "Error:" << res.networkError << "). Scheduling retry in" << delayMs << "ms (Attempt"
-                               << m_retryCount << "/" << kMaxRetries << ")";
-            if (m_retryTimer) {
-                m_retryTimer->start(delayMs);
-            }
-            return;
-        }
-
-        if (m_retryTimer) {
-            m_retryTimer->stop();
-        }
-        setBusy(false);
-
-        QString errorText;
-        const ErrorCategory cat = classifyError(res, errorText);
-
-        if (cat == ErrorCategory::RateLimited && res.retryAfterSeconds > 0) {
-            setRetrySecondsRemaining(res.retryAfterSeconds);
-            m_retryCountdownTimer->start();
-        }
-
-        qWarning() << "Groq STT error:" << errorText << "Category:" << static_cast<int>(cat)
-                   << "Raw body:" << NetworkTlsHelper::redactedBodyPreview(res.rawBody);
-        setLastError(errorText, cat);
-        emit errorOccurred(errorText);
-        return;
-    }
-
-    if (m_retryTimer) {
-        m_retryTimer->stop();
-    }
-    m_lastWavData.clear();
-    m_retryCountdownTimer->stop();
-    setRetrySecondsRemaining(0);
-    setBusy(false);
-
-    const QString text = res.json.value(u"text"_s).toString();
-    if (text.isEmpty()) {
-        qWarning() << "Groq STT: Empty transcription text in response";
-        const QString err = u"Groq API returned empty transcription"_s;
-        setLastError(err, ErrorCategory::GeneralError);
-        emit errorOccurred(err);
-        return;
-    }
-
-    qCDebug(lcNetwork) << "Groq STT: Transcription successfully received -> Length:" << text.size() << "chars";
-
-    setLastError({}, ErrorCategory::None);
-    emit transcriptionReady(text);
+bool GroqSttClient::parseTranscript(const CloudApiResponse& res, QString& outText) {
+    outText = res.json.value(u"text"_s).toString();
+    return !outText.isEmpty();
 }

@@ -40,6 +40,12 @@ public:
         bool operator==(const GeminiSttConfig&) const = default;
     };
 
+    struct MetaMusaSttConfig {
+        QString model = QStringLiteral("muse-voice-transcribe-1.0");
+        QString keywords;
+        bool operator==(const MetaMusaSttConfig&) const = default;
+    };
+
     struct LlmConfig {
         bool enabled = false;
         QString model = QStringLiteral("openai/gpt-oss-20b");
@@ -87,6 +93,7 @@ public:
     [[nodiscard]] const SpeechConfig& speechConfig() const noexcept { return m_speechConfig; }
     [[nodiscard]] const GroqSttConfig& groqSttConfig() const noexcept { return m_groqSttConfig; }
     [[nodiscard]] const GeminiSttConfig& geminiSttConfig() const noexcept { return m_geminiSttConfig; }
+    [[nodiscard]] const MetaMusaSttConfig& metaMusaSttConfig() const noexcept { return m_metaMusaSttConfig; }
     [[nodiscard]] const LlmConfig& llmConfig() const noexcept { return m_llmConfig; }
     [[nodiscard]] const TextInjectorConfig& textInjectorConfig() const noexcept { return m_textInjectorConfig; }
     [[nodiscard]] const AudioFeedbackConfig& audioFeedbackConfig() const noexcept { return m_audioFeedbackConfig; }
@@ -97,6 +104,7 @@ public:
     void setSpeechConfig(const SpeechConfig& config);
     void setGroqSttConfig(const GroqSttConfig& config);
     void setGeminiSttConfig(const GeminiSttConfig& config);
+    void setMetaMusaSttConfig(const MetaMusaSttConfig& config);
     void setLlmConfig(const LlmConfig& config);
     void setTextInjectorConfig(const TextInjectorConfig& config);
     void setAudioFeedbackConfig(const AudioFeedbackConfig& config);
@@ -115,6 +123,9 @@ public:
     void setGeminiModel(const QString& model);
     void setGeminiMode(const QString& mode);
     void setGeminiCustomVocabulary(const QString& vocabulary);
+
+    void setMetaMusaModel(const QString& model);
+    void setMetaMusaKeywords(const QString& keywords);
 
     void setLlmEnabled(bool enabled);
     void setLlmModel(const QString& model);
@@ -138,6 +149,7 @@ signals:
     void speechConfigChanged(const SettingsManager::SpeechConfig& config);
     void groqSttConfigChanged(const SettingsManager::GroqSttConfig& config);
     void geminiSttConfigChanged(const SettingsManager::GeminiSttConfig& config);
+    void metaMusaSttConfigChanged(const SettingsManager::MetaMusaSttConfig& config);
     void llmConfigChanged(const SettingsManager::LlmConfig& config);
     void textInjectorConfigChanged(const SettingsManager::TextInjectorConfig& config);
     void audioFeedbackConfigChanged(const SettingsManager::AudioFeedbackConfig& config);
@@ -150,6 +162,7 @@ private:
     static QString validateGroqModel(const QString& model);
     static QString validateGeminiModel(const QString& model);
     static QString validateGeminiMode(const QString& mode);
+    static QString validateMetaMusaModel(const QString& model);
     static QString validateLlmModel(const QString& model);
     static QString validateLlmPreset(const QString& preset);
     static double validateLlmTemperature(double temp);
@@ -158,6 +171,7 @@ private:
     SpeechConfig m_speechConfig;
     GroqSttConfig m_groqSttConfig;
     GeminiSttConfig m_geminiSttConfig;
+    MetaMusaSttConfig m_metaMusaSttConfig;
     LlmConfig m_llmConfig;
     TextInjectorConfig m_textInjectorConfig;
     AudioFeedbackConfig m_audioFeedbackConfig;

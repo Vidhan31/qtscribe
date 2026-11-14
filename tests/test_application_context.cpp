@@ -14,6 +14,7 @@
 #include "CompositeSttEngine.h"
 #include "DictationPadModel.h"
 #include "GeminiSttClient.h"
+#include "MetaMusaSttClient.h"
 #include "GlobalShortcutManager.h"
 #include "ModelService.h"
 #include "NotificationPresenter.h"
@@ -70,6 +71,7 @@ void TestApplicationContext::testHeadlessInitialization() {
     QVERIFY(context.whisperModelManager() != nullptr);
     QVERIFY(context.groqSttClient() != nullptr);
     QVERIFY(context.geminiSttClient() != nullptr);
+    QVERIFY(context.metaMusaSttClient() != nullptr);
     QVERIFY(context.cloudSttRouter() != nullptr);
     QVERIFY(context.llmClient() != nullptr);
     QVERIFY(context.audioRecorder() != nullptr);

@@ -5,6 +5,7 @@
 
 #include "common/SettingsKeys.h"
 #include "GeminiSttClient.h"
+#include "MetaMusaSttClient.h"
 #include "SettingsManager.h"
 
 #include <QSettings>
@@ -66,6 +67,10 @@ void CloudSttRouter::initDefaultProviders() {
     if (!m_clients.contains(u"gemini"_s)) {
         auto* gemini = GeminiSttClient::instance();
         registerProvider(u"gemini"_s, gemini ? gemini : new GeminiSttClient(this));
+    }
+    if (!m_clients.contains(u"meta-musa"_s)) {
+        auto* metaMusa = MetaMusaSttClient::instance();
+        registerProvider(u"meta-musa"_s, metaMusa ? metaMusa : new MetaMusaSttClient(this));
     }
 }
 

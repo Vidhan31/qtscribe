@@ -23,6 +23,7 @@ class DaemonConnector;
 class WhisperModelManager;
 class WhisperSttClient;
 class GeminiSttClient;
+class MetaMusaSttClient;
 class CloudSttRouter;
 class CompositeSttEngine;
 class NotificationPresenter;
@@ -52,6 +53,7 @@ public:
     [[nodiscard]] AbstractLlmClient* llmClient() const noexcept;
     [[nodiscard]] GroqSttClient* groqSttClient() const noexcept;
     [[nodiscard]] GeminiSttClient* geminiSttClient() const noexcept;
+    [[nodiscard]] MetaMusaSttClient* metaMusaSttClient() const noexcept;
     [[nodiscard]] CloudSttRouter* cloudSttRouter() const noexcept;
     [[nodiscard]] AudioRecorder* audioRecorder() const noexcept;
     [[nodiscard]] GlobalShortcutManager* shortcutManager() const noexcept;
@@ -70,6 +72,7 @@ private:
 
     GroqSttClient* m_groqSttClient = nullptr;
     GeminiSttClient* m_geminiSttClient = nullptr;
+    MetaMusaSttClient* m_metaMusaSttClient = nullptr;
     CloudSttRouter* m_cloudSttRouter = nullptr;
     WhisperSttClient* m_whisperSttClient = nullptr;
     WhisperModelManager* m_whisperModelManager = nullptr;

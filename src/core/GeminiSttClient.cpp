@@ -19,7 +19,6 @@
 #include <QNetworkRequest>
 #include <QRegularExpression>
 #include <QSettings>
-#include <QTimer>
 
 #include <memory>
 
@@ -41,38 +40,10 @@ QString geminiUserAgent() {
 } // namespace
 
 GeminiSttClient::GeminiSttClient(QObject* parent)
-    : AbstractCloudSttClient(parent)
-    , m_nam(new QNetworkAccessManager(this))
-    , m_retryCountdownTimer(new QTimer(this))
-    , m_retryTimer(new QTimer(this)) {
+    : BaseCloudSttClient(u"Gemini STT"_s, u"Gemini"_s, 20s, parent) {
     if (!s_geminiInstance) {
         s_geminiInstance = this;
     }
-    NetworkTlsHelper::ensureSystemProxyConfigured();
-
-    m_nam->setTransferTimeout(20s);
-    connect(m_nam, &QNetworkAccessManager::sslErrors, this,
-            [](QNetworkReply* /*reply*/, const QList<QSslError>& errors) {
-                for (const auto& err : errors) {
-                    qWarning() << "GeminiSttClient SSL Error:" << err.errorString();
-                }
-            });
-
-    m_retryCountdownTimer->setInterval(1s);
-    connect(m_retryCountdownTimer, &QTimer::timeout, this, [this]() {
-        if (m_retrySecondsRemaining > 0) {
-            setRetrySecondsRemaining(m_retrySecondsRemaining - 1);
-        } else {
-            m_retryCountdownTimer->stop();
-        }
-    });
-
-    m_retryTimer->setSingleShot(true);
-    connect(m_retryTimer, &QTimer::timeout, this, [this]() {
-        if (!m_cancelled && !m_lastWavData.isEmpty()) {
-            sendTranscribeRequest();
-        }
-    });
 
     auto* defaultStore = new ApiKeyStore(this);
     defaultStore->setStorageKeys(u"QtScribe"_s, u"gemini_api_key"_s, SettingsKeys::kGeminiSettingsKey.toString());
@@ -124,10 +95,6 @@ void GeminiSttClient::setSettingsManager(SettingsManager* settings) {
     loadSettings();
 }
 
-SettingsManager* GeminiSttClient::settingsManager() const noexcept {
-    return m_settingsManager;
-}
-
 void GeminiSttClient::loadSettings() {
     QString model = kDefaultModel.toString();
     QString modeVal = kDefaultMode.toString();
@@ -169,99 +136,6 @@ void GeminiSttClient::loadSettings() {
     if (m_keyStore) {
         m_keyStore->loadApiKey();
     }
-}
-
-void GeminiSttClient::setKeyStore(ApiKeyStore* store) {
-    if (m_keyStore == store) {
-        return;
-    }
-
-    const bool wasApiKeySet = isApiKeySet();
-    const bool wasKeyInvalid = isApiKeyInvalid();
-
-    if (m_keyStore) {
-        disconnect(m_keyStore, &ApiKeyStore::apiKeyChanged, this, &GeminiSttClient::apiKeyChanged);
-        disconnect(m_keyStore, &ApiKeyStore::apiKeySetChanged, this, &GeminiSttClient::onApiKeySetChanged);
-        if (m_ownsKeyStore && m_keyStore->parent() == this) {
-            m_keyStore->deleteLater();
-        }
-    }
-
-    m_keyStore = store;
-    m_ownsKeyStore = false;
-
-    if (m_keyStore) {
-        connect(m_keyStore, &ApiKeyStore::apiKeyChanged, this, &GeminiSttClient::apiKeyChanged);
-        connect(m_keyStore, &ApiKeyStore::apiKeySetChanged, this, &GeminiSttClient::onApiKeySetChanged);
-    }
-
-    if (isApiKeySet() != wasApiKeySet) {
-        emit apiKeySetChanged();
-        emit readyChanged();
-    }
-    if (isApiKeyInvalid() != wasKeyInvalid) {
-        emit isApiKeyInvalidChanged();
-    }
-}
-
-ApiKeyStore* GeminiSttClient::keyStore() const {
-    return m_keyStore;
-}
-
-void GeminiSttClient::setNetworkAccessManager(QNetworkAccessManager* nam) {
-    if (m_nam == nam) {
-        return;
-    }
-    if (m_nam && m_nam->parent() == this) {
-        m_nam->deleteLater();
-    }
-    m_nam = nam;
-}
-
-QString GeminiSttClient::apiKey() const {
-    return m_keyStore ? m_keyStore->apiKey() : QString();
-}
-
-void GeminiSttClient::setApiKey(const QString& key) {
-    if (m_keyStore) {
-        m_keyStore->setApiKey(key);
-    }
-}
-
-bool GeminiSttClient::isApiKeySet() const {
-    return m_keyStore && m_keyStore->apiKeySet();
-}
-
-bool GeminiSttClient::isApiKeyInvalid() const {
-    return isApiKeySet() && m_errorCategory == ErrorCategory::InvalidApiKey;
-}
-
-bool GeminiSttClient::isRateLimited() const {
-    return m_errorCategory == ErrorCategory::RateLimited && m_retrySecondsRemaining > 0;
-}
-
-int GeminiSttClient::retrySecondsRemaining() const {
-    return m_retrySecondsRemaining;
-}
-
-AbstractCloudSttClient::ErrorCategory GeminiSttClient::errorCategory() const {
-    return m_errorCategory;
-}
-
-QString GeminiSttClient::lastError() const {
-    return m_lastError;
-}
-
-bool GeminiSttClient::isReady() const {
-    return isApiKeySet();
-}
-
-bool GeminiSttClient::isBusy() const {
-    return m_busy;
-}
-
-bool GeminiSttClient::isCancelled() const {
-    return m_cancelled;
 }
 
 bool GeminiSttClient::handlesSmartFormatting() const {
@@ -328,129 +202,6 @@ void GeminiSttClient::setCustomVocabulary(const QString& vocab) {
         }
         emit customVocabularyChanged();
     }
-}
-
-void GeminiSttClient::activate() {
-    if (m_keyStore) {
-        m_keyStore->ensureApiKeyLoaded();
-    }
-    emit readyChanged();
-}
-
-void GeminiSttClient::deactivate() {
-    cancel();
-}
-
-void GeminiSttClient::onApiKeySetChanged() {
-    const bool wasKeyInvalid = isApiKeyInvalid();
-    emit apiKeySetChanged();
-    if (isApiKeyInvalid() != wasKeyInvalid) {
-        emit isApiKeyInvalidChanged();
-    }
-    emit readyChanged();
-}
-
-void GeminiSttClient::setBusy(bool busy) {
-    if (m_busy != busy) {
-        m_busy = busy;
-        emit busyChanged();
-    }
-}
-
-void GeminiSttClient::setLastError(const QString& error, ErrorCategory category) {
-    if (m_lastError != error) {
-        m_lastError = error;
-        emit lastErrorChanged();
-    }
-    setErrorCategory(category);
-}
-
-void GeminiSttClient::setErrorCategory(ErrorCategory category) {
-    if (m_errorCategory != category) {
-        const bool wasKeyInvalid = isApiKeyInvalid();
-        const bool wasRateLimited = isRateLimited();
-        m_errorCategory = category;
-        emit errorCategoryChanged();
-        if (isApiKeyInvalid() != wasKeyInvalid) {
-            emit isApiKeyInvalidChanged();
-        }
-        if (isRateLimited() != wasRateLimited) {
-            emit isRateLimitedChanged();
-        }
-    }
-}
-
-void GeminiSttClient::setRetrySecondsRemaining(int seconds) {
-    if (m_retrySecondsRemaining != seconds) {
-        const bool wasRateLimited = isRateLimited();
-        m_retrySecondsRemaining = seconds;
-        emit retrySecondsRemainingChanged();
-        if (isRateLimited() != wasRateLimited) {
-            emit isRateLimitedChanged();
-        }
-    }
-}
-
-void GeminiSttClient::cancel() {
-    const bool wasBusy = m_busy;
-    if (m_retryTimer) {
-        m_retryTimer->stop();
-    }
-    if (m_currentReply) {
-        m_currentReply->abort();
-        m_currentReply = nullptr;
-    }
-    m_cancelled = true;
-    m_retryCountdownTimer->stop();
-    setRetrySecondsRemaining(0);
-    m_lastWavData.clear();
-    m_retryCount = 0;
-    setBusy(false);
-    if (wasBusy) {
-        emit busyChanged();
-    }
-}
-
-void GeminiSttClient::retryLast() {
-    if (!m_lastWavData.isEmpty() && !isBusy()) {
-        if (m_retryTimer) {
-            m_retryTimer->stop();
-        }
-        m_cancelled = false;
-        m_retryCount = 0;
-        sendTranscribeRequest();
-    }
-}
-
-void GeminiSttClient::transcribe(const QByteArray& wavData) {
-    if (isBusy()) {
-        qCDebug(lcNetwork) << "Gemini STT: transcribe ignored, request already in progress";
-        setLastError(u"A transcription request is already in progress"_s, ErrorCategory::GeneralError);
-        return;
-    }
-
-    if (!isApiKeySet()) {
-        qWarning() << "Gemini STT: Attempted transcribe without an API key";
-        setLastError(u"Gemini API key is not set"_s, ErrorCategory::InvalidApiKey);
-        emit errorOccurred(m_lastError);
-        return;
-    }
-
-    if (wavData.isEmpty()) {
-        qWarning() << "Gemini STT: Attempted transcribe with empty audio data";
-        setLastError(u"No audio data to transcribe"_s, ErrorCategory::GeneralError);
-        emit errorOccurred(m_lastError);
-        return;
-    }
-
-    if (m_retryTimer) {
-        m_retryTimer->stop();
-    }
-    m_cancelled = false;
-    m_retryCount = 0;
-    m_lastWavData = wavData;
-
-    sendTranscribeRequest();
 }
 
 void GeminiSttClient::sendTranscribeRequest() {
@@ -543,122 +294,13 @@ void GeminiSttClient::sendTranscribeRequest() {
     });
 }
 
-bool GeminiSttClient::shouldRetry(const CloudApiResponse& res) const {
-    if (m_cancelled || m_retryCount >= kMaxRetries || res.isSuccess) {
-        return false;
-    }
-    if (res.isRateLimited && res.retryAfterSeconds > 0 && res.retryAfterSeconds <= kMaxTransientRetryAfterSec) {
-        return true;
-    }
-    if (res.httpStatus >= 500 && res.httpStatus <= 599) {
-        return true;
-    }
-    switch (res.networkError) {
-        case QNetworkReply::RemoteHostClosedError:
-        case QNetworkReply::TemporaryNetworkFailureError:
-        case QNetworkReply::TimeoutError:
-        case QNetworkReply::NetworkSessionFailedError:
-            return true;
-        default:
-            break;
-    }
-    return false;
-}
-
-int GeminiSttClient::calculateRetryDelayMs(const CloudApiResponse& res) {
-    if (res.isRateLimited && res.retryAfterSeconds > 0) {
-        return res.retryAfterSeconds * 1000;
-    }
-    return kDefaultDelayMs;
-}
-
-AbstractCloudSttClient::ErrorCategory GeminiSttClient::classifyError(const CloudApiResponse& res, QString& outMessage) {
-    ErrorCategory cat = ErrorCategory::GeneralError;
-    outMessage = res.errorMessage;
-
-    if (res.httpStatus == 401 || res.httpStatus == 403 ||
-        outMessage.contains(u"API_KEY_INVALID"_s, Qt::CaseInsensitive) ||
-        outMessage.contains(u"Invalid API Key"_s, Qt::CaseInsensitive) ||
-        outMessage.contains(u"API key not valid"_s, Qt::CaseInsensitive)) {
-        cat = ErrorCategory::InvalidApiKey;
-        outMessage = u"Invalid API Key. Please check your Gemini API key in Settings."_s;
-    } else if (res.isRateLimited) {
-        cat = ErrorCategory::RateLimited;
-    } else if (res.networkError == QNetworkReply::HostNotFoundError ||
-               res.networkError == QNetworkReply::ConnectionRefusedError ||
-               res.networkError == QNetworkReply::TimeoutError ||
-               res.networkError == QNetworkReply::NetworkSessionFailedError) {
-        cat = ErrorCategory::NetworkOffline;
-        outMessage = u"No internet connection. Please check your network and try again."_s;
+bool GeminiSttClient::parseTranscript(const CloudApiResponse& res, QString& outText) {
+    if (res.json.contains(u"output_text"_s)) {
+        outText = res.json.value(u"output_text"_s).toString().trimmed();
     }
 
-    return cat;
-}
-
-void GeminiSttClient::handleApiResponse(const CloudApiResponse& res) {
-    m_currentReply = nullptr;
-
-    qCDebug(lcNetwork) << "Gemini STT HTTP response received -> Status:" << res.httpStatus
-                       << "Elapsed time:" << res.latencyMs << "ms";
-
-    if (m_cancelled || res.networkError == QNetworkReply::OperationCanceledError) {
-        qCDebug(lcNetwork) << "Gemini STT: Request cancelled/aborted, ignoring response";
-        if (m_retryTimer) {
-            m_retryTimer->stop();
-        }
-        setBusy(false);
-        return;
-    }
-
-    if (!res.isSuccess) {
-        if (shouldRetry(res) && !m_lastWavData.isEmpty()) {
-            ++m_retryCount;
-            const int delayMs = calculateRetryDelayMs(res);
-            qCDebug(lcNetwork) << "Gemini STT: Transient error encountered (Status:" << res.httpStatus
-                               << "Error:" << res.networkError << "). Scheduling retry in" << delayMs << "ms (Attempt"
-                               << m_retryCount << "/" << kMaxRetries << ")";
-            if (m_retryTimer) {
-                m_retryTimer->start(delayMs);
-            }
-            return;
-        }
-
-        if (m_retryTimer) {
-            m_retryTimer->stop();
-        }
-        setBusy(false);
-
-        QString errorText;
-        const ErrorCategory cat = classifyError(res, errorText);
-
-        if (cat == ErrorCategory::RateLimited && res.retryAfterSeconds > 0) {
-            setRetrySecondsRemaining(res.retryAfterSeconds);
-            m_retryCountdownTimer->start();
-        }
-
-        qWarning() << "Gemini STT error:" << errorText << "Category:" << static_cast<int>(cat)
-                   << "Raw body:" << NetworkTlsHelper::redactedBodyPreview(res.rawBody);
-        setLastError(errorText, cat);
-        emit errorOccurred(errorText);
-        return;
-    }
-
-    if (m_retryTimer) {
-        m_retryTimer->stop();
-    }
-    m_lastWavData.clear();
-    m_retryCountdownTimer->stop();
-    setRetrySecondsRemaining(0);
-    setBusy(false);
-
-    QString text;
-    const QJsonObject& json = res.json;
-    if (json.contains(u"output_text"_s)) {
-        text = json.value(u"output_text"_s).toString().trimmed();
-    }
-
-    if (text.isEmpty() && json.contains(u"steps"_s)) {
-        const QJsonArray steps = json.value(u"steps"_s).toArray();
+    if (outText.isEmpty() && res.json.contains(u"steps"_s)) {
+        const QJsonArray steps = res.json.value(u"steps"_s).toArray();
         QStringList extractedParts;
         for (const auto& stepVal : steps) {
             const QJsonObject stepObj = stepVal.toObject();
@@ -672,19 +314,8 @@ void GeminiSttClient::handleApiResponse(const CloudApiResponse& res) {
                 }
             }
         }
-        text = extractedParts.join(u"\n"_s).trimmed();
+        outText = extractedParts.join(u"\n"_s).trimmed();
     }
 
-    if (text.isEmpty()) {
-        qWarning() << "Gemini STT: Empty transcription text in response";
-        const QString err = u"Gemini API returned empty transcription"_s;
-        setLastError(err, ErrorCategory::GeneralError);
-        emit errorOccurred(err);
-        return;
-    }
-
-    qCDebug(lcNetwork) << "Gemini STT: Transcription successfully received -> Length:" << text.size() << "chars";
-
-    setLastError({}, ErrorCategory::None);
-    emit transcriptionReady(text);
+    return !outText.isEmpty();
 }
