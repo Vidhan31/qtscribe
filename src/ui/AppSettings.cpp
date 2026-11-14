@@ -21,9 +21,13 @@ const auto kGroqLegacySettingsKey = SettingsKeys::kGroqLegacySettingsKey.toStrin
 constexpr auto kGeminiKeychainKey = "gemini_api_key";
 const auto kGeminiSettingsKey = SettingsKeys::kGeminiSettingsKey.toString();
 
+constexpr auto kMetaMusaKeychainKey = "meta_musa_api_key";
+const auto kMetaMusaSettingsKey = SettingsKeys::kMetaMusaSettingsKey.toString();
+
 const auto kDefaultGroqModel = u"whisper-large-v3-turbo"_s;
 const auto kDefaultGeminiModel = u"gemini-3.5-transcribe"_s;
 const auto kDefaultGeminiMode = u"smart"_s;
+const auto kDefaultMetaMusaModel = u"muse-voice-transcribe-1.0"_s;
 const auto kDefaultLlmModel = u"openai/gpt-oss-20b"_s;
 const auto kDefaultLlmPreset = u"grammar"_s;
 } // namespace
@@ -33,6 +37,7 @@ AppSettings::AppSettings(QObject* parent)
     loadPersistedValues();
     loadApiKey(ApiKeyKind::Groq);
     loadApiKey(ApiKeyKind::Gemini);
+    loadApiKey(ApiKeyKind::MetaMusa);
 
     if (auto* sc = SettingsClient::instance()) {
         connect(sc, &SettingsClient::settingChanged, this, [this](const QString& key, const QVariant& value) {
@@ -71,6 +76,18 @@ AppSettings::AppSettings(QObject* parent)
                 if (m_geminiCustomVocabulary != val) {
                     m_geminiCustomVocabulary = val;
                     emit geminiCustomVocabularyChanged();
+                }
+            } else if (key == SettingsKeys::kMetaMusaModel) {
+                const QString val = value.toString();
+                if (m_metaMusaModel != val) {
+                    m_metaMusaModel = val;
+                    emit metaMusaModelChanged();
+                }
+            } else if (key == SettingsKeys::kMetaMusaKeywords) {
+                const QString val = value.toString();
+                if (m_metaMusaKeywords != val) {
+                    m_metaMusaKeywords = val;
+                    emit metaMusaKeywordsChanged();
                 }
             } else if (key == SettingsKeys::kGroqLlmEnabled) {
                 const bool val = value.toBool();
@@ -141,6 +158,12 @@ void AppSettings::loadPersistedValues() {
         m_geminiMode = kDefaultGeminiMode;
     }
     m_geminiCustomVocabulary = getVal(SettingsKeys::kGeminiCustomVocabulary, QString()).toString();
+
+    m_metaMusaModel = getVal(SettingsKeys::kMetaMusaModel, kDefaultMetaMusaModel).toString();
+    if (m_metaMusaModel.trimmed().isEmpty()) {
+        m_metaMusaModel = kDefaultMetaMusaModel;
+    }
+    m_metaMusaKeywords = getVal(SettingsKeys::kMetaMusaKeywords, QString()).toString();
 
     m_llmEnabled = getVal(SettingsKeys::kGroqLlmEnabled, false).toBool();
     m_llmModel = getVal(SettingsKeys::kGroqLlmModel, kDefaultLlmModel).toString();
@@ -264,6 +287,46 @@ void AppSettings::setGeminiCustomVocabulary(const QString& vocabulary) {
     emit geminiCustomVocabularyChanged();
 }
 
+QString AppSettings::metaMusaApiKey() const {
+    return m_metaMusaApiKey;
+}
+
+void AppSettings::setMetaMusaApiKey(const QString& key) {
+    const QString trimmed = key.trimmed();
+    if (m_metaMusaApiKey == trimmed) {
+        return;
+    }
+    m_metaMusaApiKey = trimmed;
+    emit metaMusaApiKeyChanged();
+    persistApiKey(ApiKeyKind::MetaMusa, trimmed);
+}
+
+QString AppSettings::metaMusaModel() const {
+    return m_metaMusaModel;
+}
+
+void AppSettings::setMetaMusaModel(const QString& model) {
+    if (m_metaMusaModel == model) {
+        return;
+    }
+    m_metaMusaModel = model;
+    persistValue(u"MetaMusa/Model"_s, model);
+    emit metaMusaModelChanged();
+}
+
+QString AppSettings::metaMusaKeywords() const {
+    return m_metaMusaKeywords;
+}
+
+void AppSettings::setMetaMusaKeywords(const QString& keywords) {
+    if (m_metaMusaKeywords == keywords) {
+        return;
+    }
+    m_metaMusaKeywords = keywords;
+    persistValue(u"MetaMusa/Keywords"_s, keywords);
+    emit metaMusaKeywordsChanged();
+}
+
 bool AppSettings::llmEnabled() const {
     return m_llmEnabled;
 }
@@ -364,21 +427,32 @@ QString AppSettings::systemPromptForPreset(const QString& preset) const {
 }
 
 QString& AppSettings::apiKeyRef(ApiKeyKind kind) {
-    return kind == ApiKeyKind::Groq ? m_groqApiKey : m_geminiApiKey;
+    if (kind == ApiKeyKind::Groq) {
+        return m_groqApiKey;
+    }
+    if (kind == ApiKeyKind::Gemini) {
+        return m_geminiApiKey;
+    }
+    return m_metaMusaApiKey;
 }
 
 void AppSettings::emitApiKeyChanged(ApiKeyKind kind) {
     if (kind == ApiKeyKind::Groq) {
         emit groqApiKeyChanged();
-    } else {
+    } else if (kind == ApiKeyKind::Gemini) {
         emit geminiApiKeyChanged();
+    } else {
+        emit metaMusaApiKeyChanged();
     }
 }
 
 void AppSettings::loadApiKey(ApiKeyKind kind) {
-    const QString keychainKey =
-        (kind == ApiKeyKind::Groq) ? QString::fromLatin1(kGroqKeychainKey) : QString::fromLatin1(kGeminiKeychainKey);
-    const QString settingsKey = (kind == ApiKeyKind::Groq) ? kGroqSettingsKey : kGeminiSettingsKey;
+    const QString keychainKey = (kind == ApiKeyKind::Groq)     ? QString::fromLatin1(kGroqKeychainKey)
+                                : (kind == ApiKeyKind::Gemini) ? QString::fromLatin1(kGeminiKeychainKey)
+                                                               : QString::fromLatin1(kMetaMusaKeychainKey);
+    const QString settingsKey = (kind == ApiKeyKind::Groq)     ? kGroqSettingsKey
+                                : (kind == ApiKeyKind::Gemini) ? kGeminiSettingsKey
+                                                               : kMetaMusaSettingsKey;
 
     auto* readJob = new QKeychain::ReadPasswordJob(QString::fromLatin1(kKeychainService));
     readJob->setKey(keychainKey);
@@ -420,9 +494,12 @@ void AppSettings::applyLoadedApiKey(ApiKeyKind kind, const QString& key) {
 }
 
 void AppSettings::persistApiKey(ApiKeyKind kind, const QString& value) {
-    const QString keychainKey =
-        (kind == ApiKeyKind::Groq) ? QString::fromLatin1(kGroqKeychainKey) : QString::fromLatin1(kGeminiKeychainKey);
-    const QString settingsKey = (kind == ApiKeyKind::Groq) ? kGroqSettingsKey : kGeminiSettingsKey;
+    const QString keychainKey = (kind == ApiKeyKind::Groq)     ? QString::fromLatin1(kGroqKeychainKey)
+                                : (kind == ApiKeyKind::Gemini) ? QString::fromLatin1(kGeminiKeychainKey)
+                                                               : QString::fromLatin1(kMetaMusaKeychainKey);
+    const QString settingsKey = (kind == ApiKeyKind::Groq)     ? kGroqSettingsKey
+                                : (kind == ApiKeyKind::Gemini) ? kGeminiSettingsKey
+                                                               : kMetaMusaSettingsKey;
     const QString legacyKey = (kind == ApiKeyKind::Groq) ? kGroqLegacySettingsKey : QString();
 
     QSettings settings;

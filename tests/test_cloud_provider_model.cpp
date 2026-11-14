@@ -42,8 +42,8 @@ void TestCloudProviderModel::cleanup() {
 
 void TestCloudProviderModel::testInitialModelPopulation() {
     CloudProviderModel model;
-    QCOMPARE(model.count(), 2);
-    QCOMPARE(model.rowCount(), 2);
+    QCOMPARE(model.count(), 3);
+    QCOMPARE(model.rowCount(), 3);
 
     const QModelIndex firstIdx = model.index(0, 0);
     QVERIFY(firstIdx.isValid());
@@ -72,6 +72,13 @@ void TestCloudProviderModel::testInitialModelPopulation() {
     QCOMPARE(model.data(secondIdx, CloudProviderModel::NameRole).toString(), tr("Google Gemini"));
     QCOMPARE(model.data(secondIdx, CloudProviderModel::ComponentSourceRole).toString(), u"providers/GeminiProviderSettings.qml"_s);
     QCOMPARE(model.data(secondIdx, CloudProviderModel::WebsiteUrlRole).toString(), u"https://aistudio.google.com/app/apikey"_s);
+
+    const QModelIndex thirdIdx = model.index(2, 0);
+    QVERIFY(thirdIdx.isValid());
+    QCOMPARE(model.data(thirdIdx, CloudProviderModel::IdRole).toString(), u"meta-musa"_s);
+    QCOMPARE(model.data(thirdIdx, CloudProviderModel::NameRole).toString(), tr("Meta Musa"));
+    QCOMPARE(model.data(thirdIdx, CloudProviderModel::ComponentSourceRole).toString(), u"providers/MetaMusaProviderSettings.qml"_s);
+    QCOMPARE(model.data(thirdIdx, CloudProviderModel::WebsiteUrlRole).toString(), u"https://dev.meta.ai/"_s);
 }
 
 void TestCloudProviderModel::testActiveProviderProperties() {
@@ -88,9 +95,11 @@ void TestCloudProviderModel::testProviderLookupAndIndex() {
     CloudProviderModel model;
     QCOMPARE(model.indexOfProvider(u"groq"_s), 0);
     QCOMPARE(model.indexOfProvider(u"gemini"_s), 1);
+    QCOMPARE(model.indexOfProvider(u"meta-musa"_s), 2);
     QCOMPARE(model.indexOfProvider(u"non_existent"_s), -1);
     QCOMPARE(model.providerIdAt(0), u"groq"_s);
     QCOMPARE(model.providerIdAt(1), u"gemini"_s);
+    QCOMPARE(model.providerIdAt(2), u"meta-musa"_s);
     QCOMPARE(model.providerIdAt(99), QString());
 
     QSignalSpy activeChangedSpy(&model, &CloudProviderModel::activeProviderChanged);

@@ -21,6 +21,9 @@ inline constexpr QStringView kGeminiModel = u"Gemini/Model";
 inline constexpr QStringView kGeminiMode = u"Gemini/Mode";
 inline constexpr QStringView kGeminiCustomVocabulary = u"Gemini/CustomVocabulary";
 
+inline constexpr QStringView kMetaMusaModel = u"MetaMusa/Model";
+inline constexpr QStringView kMetaMusaKeywords = u"MetaMusa/Keywords";
+
 inline constexpr QStringView kGroqLlmEnabled = u"Groq/LlmEnabled";
 inline constexpr QStringView kGroqLlmModel = u"Groq/LlmModel";
 inline constexpr QStringView kGroqLlmPreset = u"Groq/LlmPreset";
@@ -39,5 +42,6 @@ inline constexpr QStringView kUiThemeMode = u"ui/themeMode";
 inline constexpr QStringView kGroqSettingsKey = u"Cloud/Providers/Groq/ApiKey";
 inline constexpr QStringView kGroqLegacySettingsKey = u"Groq/ApiKey";
 inline constexpr QStringView kGeminiSettingsKey = u"Cloud/Providers/Gemini/ApiKey";
+inline constexpr QStringView kMetaMusaSettingsKey = u"Cloud/Providers/MetaMusa/ApiKey";
 
 } // namespace SettingsKeys

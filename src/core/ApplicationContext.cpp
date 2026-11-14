@@ -18,6 +18,7 @@
 #include "GlobalShortcutManager.h"
 #include "HistoryRepository.h"
 #include "LinuxNotificationService.h"
+#include "MetaMusaSttClient.h"
 #include "ModelService.h"
 #include "NotificationPresenter.h"
 #include "SettingsManager.h"
@@ -46,6 +47,7 @@ void ApplicationContext::initializeHeadless(bool startServices) {
 
     m_groqSttClient = new GroqSttClient(this);
     m_geminiSttClient = new GeminiSttClient(this);
+    m_metaMusaSttClient = new MetaMusaSttClient(this);
     m_cloudSttRouter = new CloudSttRouter(this);
     m_whisperModelManager = new WhisperModelManager(this);
     m_whisperSttClient = new WhisperSttClient(this);
@@ -112,6 +114,9 @@ void ApplicationContext::reloadSettings() {
     if (m_geminiSttClient) {
         m_geminiSttClient->loadSettings();
     }
+    if (m_metaMusaSttClient) {
+        m_metaMusaSttClient->loadSettings();
+    }
     if (m_groqLlmClient) {
         m_groqLlmClient->loadSettings();
     }
@@ -162,6 +167,9 @@ void ApplicationContext::wireSubsystems() {
         if (m_geminiSttClient) {
             m_geminiSttClient->setSettingsManager(m_settingsManager);
         }
+        if (m_metaMusaSttClient) {
+            m_metaMusaSttClient->setSettingsManager(m_settingsManager);
+        }
         if (m_groqLlmClient) {
             m_groqLlmClient->setSettingsManager(m_settingsManager);
         }
@@ -192,6 +200,7 @@ void ApplicationContext::wireSubsystems() {
     if (m_cloudSttRouter) {
         m_cloudSttRouter->registerProvider(u"groq"_s, m_groqSttClient);
         m_cloudSttRouter->registerProvider(u"gemini"_s, m_geminiSttClient);
+        m_cloudSttRouter->registerProvider(u"meta-musa"_s, m_metaMusaSttClient);
     }
 
     if (m_compositeSttEngine) {
@@ -361,6 +370,10 @@ GroqSttClient* ApplicationContext::groqSttClient() const noexcept {
 
 GeminiSttClient* ApplicationContext::geminiSttClient() const noexcept {
     return m_geminiSttClient;
+}
+
+MetaMusaSttClient* ApplicationContext::metaMusaSttClient() const noexcept {
+    return m_metaMusaSttClient;
 }
 
 CloudSttRouter* ApplicationContext::cloudSttRouter() const noexcept {

@@ -54,6 +54,11 @@ QString SettingsManager::validateGeminiMode(const QString& mode) {
     return u"smart"_s;
 }
 
+QString SettingsManager::validateMetaMusaModel(const QString& model) {
+    const QString trimmed = model.trimmed();
+    return trimmed.isEmpty() ? u"muse-voice-transcribe-1.0"_s : trimmed;
+}
+
 QString SettingsManager::validateLlmModel(const QString& model) {
     if (model.isEmpty() || model == u"llama-3.1-8b-instant"_s) {
         return u"openai/gpt-oss-20b"_s;
@@ -96,6 +101,11 @@ void SettingsManager::load() {
     newGemini.mode = validateGeminiMode(settings.value(SettingsKeys::kGeminiMode.toString(), u"smart"_s).toString());
     newGemini.customVocabulary = settings.value(SettingsKeys::kGeminiCustomVocabulary.toString(), QString()).toString();
 
+    MetaMusaSttConfig newMetaMusa;
+    newMetaMusa.model = validateMetaMusaModel(
+        settings.value(SettingsKeys::kMetaMusaModel.toString(), u"muse-voice-transcribe-1.0"_s).toString());
+    newMetaMusa.keywords = settings.value(SettingsKeys::kMetaMusaKeywords.toString(), QString()).toString();
+
     LlmConfig newLlm;
     newLlm.enabled = settings.value(SettingsKeys::kGroqLlmEnabled.toString(), false).toBool();
     newLlm.model =
@@ -126,6 +136,7 @@ void SettingsManager::load() {
     const bool speechChanged = (m_speechConfig != newSpeech);
     const bool groqChanged = (m_groqSttConfig != newGroq);
     const bool geminiChanged = (m_geminiSttConfig != newGemini);
+    const bool metaMusaChanged = (m_metaMusaSttConfig != newMetaMusa);
     const bool llmChanged = (m_llmConfig != newLlm);
     const bool injectorChanged = (m_textInjectorConfig != newInjector);
     const bool audioChanged = (m_audioFeedbackConfig != newAudio);
@@ -136,6 +147,7 @@ void SettingsManager::load() {
     m_speechConfig = newSpeech;
     m_groqSttConfig = newGroq;
     m_geminiSttConfig = newGemini;
+    m_metaMusaSttConfig = newMetaMusa;
     m_llmConfig = newLlm;
     m_textInjectorConfig = newInjector;
     m_audioFeedbackConfig = newAudio;
@@ -151,6 +163,9 @@ void SettingsManager::load() {
     }
     if (geminiChanged) {
         emit geminiSttConfigChanged(m_geminiSttConfig);
+    }
+    if (metaMusaChanged) {
+        emit metaMusaSttConfigChanged(m_metaMusaSttConfig);
     }
     if (llmChanged) {
         emit llmConfigChanged(m_llmConfig);
@@ -188,6 +203,9 @@ void SettingsManager::save() const {
     settings.setValue(SettingsKeys::kGeminiModel.toString(), m_geminiSttConfig.model);
     settings.setValue(SettingsKeys::kGeminiMode.toString(), m_geminiSttConfig.mode);
     settings.setValue(SettingsKeys::kGeminiCustomVocabulary.toString(), m_geminiSttConfig.customVocabulary);
+
+    settings.setValue(SettingsKeys::kMetaMusaModel.toString(), m_metaMusaSttConfig.model);
+    settings.setValue(SettingsKeys::kMetaMusaKeywords.toString(), m_metaMusaSttConfig.keywords);
 
     settings.setValue(SettingsKeys::kGroqLlmEnabled.toString(), m_llmConfig.enabled);
     settings.setValue(SettingsKeys::kGroqLlmModel.toString(), m_llmConfig.model);
@@ -323,6 +341,43 @@ void SettingsManager::setGeminiSttConfig(const GeminiSttConfig& config) {
     settings.setValue(SettingsKeys::kGeminiCustomVocabulary.toString(), m_geminiSttConfig.customVocabulary);
     settings.sync();
     emit geminiSttConfigChanged(m_geminiSttConfig);
+}
+
+void SettingsManager::setMetaMusaSttConfig(const MetaMusaSttConfig& config) {
+    MetaMusaSttConfig validated = config;
+    validated.model = validateMetaMusaModel(validated.model);
+    if (m_metaMusaSttConfig == validated) {
+        return;
+    }
+    m_metaMusaSttConfig = validated;
+    QSettings settings;
+    settings.setValue(SettingsKeys::kMetaMusaModel.toString(), m_metaMusaSttConfig.model);
+    settings.setValue(SettingsKeys::kMetaMusaKeywords.toString(), m_metaMusaSttConfig.keywords);
+    settings.sync();
+    emit metaMusaSttConfigChanged(m_metaMusaSttConfig);
+}
+
+void SettingsManager::setMetaMusaModel(const QString& model) {
+    const QString valid = validateMetaMusaModel(model);
+    if (m_metaMusaSttConfig.model != valid) {
+        m_metaMusaSttConfig.model = valid;
+        QSettings settings;
+        settings.setValue(SettingsKeys::kMetaMusaModel.toString(), valid);
+        settings.sync();
+        emit metaMusaSttConfigChanged(m_metaMusaSttConfig);
+        emit settingChanged(SettingsKeys::kMetaMusaModel.toString(), valid);
+    }
+}
+
+void SettingsManager::setMetaMusaKeywords(const QString& keywords) {
+    if (m_metaMusaSttConfig.keywords != keywords) {
+        m_metaMusaSttConfig.keywords = keywords;
+        QSettings settings;
+        settings.setValue(SettingsKeys::kMetaMusaKeywords.toString(), keywords);
+        settings.sync();
+        emit metaMusaSttConfigChanged(m_metaMusaSttConfig);
+        emit settingChanged(SettingsKeys::kMetaMusaKeywords.toString(), keywords);
+    }
 }
 
 void SettingsManager::setGeminiModel(const QString& model) {
@@ -590,6 +645,10 @@ void SettingsManager::setSetting(const QString& key, const QVariant& value) {
         setGeminiMode(value.toString());
     } else if (key == SettingsKeys::kGeminiCustomVocabulary) {
         setGeminiCustomVocabulary(value.toString());
+    } else if (key == SettingsKeys::kMetaMusaModel) {
+        setMetaMusaModel(value.toString());
+    } else if (key == SettingsKeys::kMetaMusaKeywords) {
+        setMetaMusaKeywords(value.toString());
     } else if (key == SettingsKeys::kGroqLlmEnabled) {
         setLlmEnabled(value.toBool());
     } else if (key == SettingsKeys::kGroqLlmModel) {
@@ -651,6 +710,12 @@ QVariant SettingsManager::getSetting(const QString& key, const QVariant& default
     if (key == SettingsKeys::kGeminiCustomVocabulary) {
         return m_geminiSttConfig.customVocabulary;
     }
+    if (key == SettingsKeys::kMetaMusaModel) {
+        return m_metaMusaSttConfig.model;
+    }
+    if (key == SettingsKeys::kMetaMusaKeywords) {
+        return m_metaMusaSttConfig.keywords;
+    }
     if (key == SettingsKeys::kGroqLlmEnabled) {
         return m_llmConfig.enabled;
     }
@@ -703,6 +768,8 @@ QVariantMap SettingsManager::allSettings() const {
     map.insert(SettingsKeys::kGeminiModel.toString(), m_geminiSttConfig.model);
     map.insert(SettingsKeys::kGeminiMode.toString(), m_geminiSttConfig.mode);
     map.insert(SettingsKeys::kGeminiCustomVocabulary.toString(), m_geminiSttConfig.customVocabulary);
+    map.insert(SettingsKeys::kMetaMusaModel.toString(), m_metaMusaSttConfig.model);
+    map.insert(SettingsKeys::kMetaMusaKeywords.toString(), m_metaMusaSttConfig.keywords);
     map.insert(SettingsKeys::kGroqLlmEnabled.toString(), m_llmConfig.enabled);
     map.insert(SettingsKeys::kGroqLlmModel.toString(), m_llmConfig.model);
     map.insert(SettingsKeys::kGroqLlmPreset.toString(), m_llmConfig.preset);

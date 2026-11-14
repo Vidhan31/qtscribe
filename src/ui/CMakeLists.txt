@@ -68,6 +68,7 @@ qt_add_qml_module(qtscribe_ui
         settings/CloudSettingsPage.qml
         settings/providers/GroqProviderSettings.qml
         settings/providers/GeminiProviderSettings.qml
+        settings/providers/MetaMusaProviderSettings.qml
         settings/OfflineSettingsPage.qml
         settings/SystemSettingsPage.qml
 )

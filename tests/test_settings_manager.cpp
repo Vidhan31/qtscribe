@@ -42,6 +42,10 @@ private slots:
         QCOMPARE(gemini.mode, u"smart"_s);
         QCOMPARE(gemini.customVocabulary, QString());
 
+        const auto& metaMusa = manager.metaMusaSttConfig();
+        QCOMPARE(metaMusa.model, u"muse-voice-transcribe-1.0"_s);
+        QCOMPARE(metaMusa.keywords, QString());
+
         const auto& llm = manager.llmConfig();
         QCOMPARE(llm.enabled, false);
         QCOMPARE(llm.model, u"openai/gpt-oss-20b"_s);
@@ -79,6 +83,11 @@ private slots:
 
         manager.setGeminiMode(u"verbatim"_s);
         QCOMPARE(manager.geminiSttConfig().mode, u"verbatim"_s);
+
+        manager.setMetaMusaModel(u"   "_s);
+        QCOMPARE(manager.metaMusaSttConfig().model, u"muse-voice-transcribe-1.0"_s);
+        manager.setMetaMusaKeywords(u"test, keywords"_s);
+        QCOMPARE(manager.metaMusaSttConfig().keywords, u"test, keywords"_s);
 
         manager.setLlmModel(u"llama-3.1-8b-instant"_s);
         QCOMPARE(manager.llmConfig().model, u"openai/gpt-oss-20b"_s);

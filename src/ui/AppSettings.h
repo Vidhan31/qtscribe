@@ -27,6 +27,10 @@ class AppSettings : public QObject {
     Q_PROPERTY(QString geminiMode READ geminiMode WRITE setGeminiMode NOTIFY geminiModeChanged FINAL)
     Q_PROPERTY(QString geminiCustomVocabulary READ geminiCustomVocabulary WRITE setGeminiCustomVocabulary NOTIFY geminiCustomVocabularyChanged FINAL)
 
+    Q_PROPERTY(QString metaMusaApiKey READ metaMusaApiKey WRITE setMetaMusaApiKey NOTIFY metaMusaApiKeyChanged FINAL)
+    Q_PROPERTY(QString metaMusaModel READ metaMusaModel WRITE setMetaMusaModel NOTIFY metaMusaModelChanged FINAL)
+    Q_PROPERTY(QString metaMusaKeywords READ metaMusaKeywords WRITE setMetaMusaKeywords NOTIFY metaMusaKeywordsChanged FINAL)
+
     Q_PROPERTY(bool llmEnabled READ llmEnabled WRITE setLlmEnabled NOTIFY llmEnabledChanged FINAL)
     Q_PROPERTY(QString llmModel READ llmModel WRITE setLlmModel NOTIFY llmModelChanged FINAL)
     Q_PROPERTY(QString llmPreset READ llmPreset WRITE setLlmPreset NOTIFY llmPresetChanged FINAL)
@@ -59,6 +63,13 @@ public:
     [[nodiscard]] QString geminiCustomVocabulary() const;
     void setGeminiCustomVocabulary(const QString& vocabulary);
 
+    [[nodiscard]] QString metaMusaApiKey() const;
+    void setMetaMusaApiKey(const QString& key);
+    [[nodiscard]] QString metaMusaModel() const;
+    void setMetaMusaModel(const QString& model);
+    [[nodiscard]] QString metaMusaKeywords() const;
+    void setMetaMusaKeywords(const QString& keywords);
+
     [[nodiscard]] bool llmEnabled() const;
     void setLlmEnabled(bool enabled);
     [[nodiscard]] QString llmModel() const;
@@ -87,6 +98,9 @@ signals:
     void geminiModelChanged();
     void geminiModeChanged();
     void geminiCustomVocabularyChanged();
+    void metaMusaApiKeyChanged();
+    void metaMusaModelChanged();
+    void metaMusaKeywordsChanged();
     void llmEnabledChanged();
     void llmModelChanged();
     void llmPresetChanged();
@@ -97,7 +111,7 @@ signals:
 
 private:
     // NOLINTNEXTLINE(performance-enum-size) small private enum, no QML exposure
-    enum class ApiKeyKind { Groq, Gemini };
+    enum class ApiKeyKind { Groq, Gemini, MetaMusa };
 
     void loadPersistedValues();
     void loadApiKey(ApiKeyKind kind);
@@ -111,6 +125,7 @@ private:
 
     QString m_groqApiKey;
     QString m_geminiApiKey;
+    QString m_metaMusaApiKey;
 
     QString m_groqSttModel;
     QString m_groqLanguage;
@@ -118,6 +133,8 @@ private:
     QString m_geminiModel;
     QString m_geminiMode;
     QString m_geminiCustomVocabulary;
+    QString m_metaMusaModel;
+    QString m_metaMusaKeywords;
     QString m_llmModel;
     QString m_llmPreset;
     QString m_llmCustomPrompt;

@@ -192,6 +192,11 @@ add_qtscribe_test(gemini_stt_client
     LIBRARIES Qt6::Network
 )
 
+add_qtscribe_test(meta_musa_stt_client
+    TEST_NAME MetaMusaSttClientTest
+    LIBRARIES Qt6::Network
+)
+
 add_qtscribe_test(cloud_stt_router
     TEST_NAME CloudSttRouterTest
     LIBRARIES Qt6::Network

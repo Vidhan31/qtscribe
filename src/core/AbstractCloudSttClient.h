@@ -13,7 +13,7 @@ class AbstractCloudSttClient : public AbstractSttClient {
 
 public:
     // NOLINTNEXTLINE(performance-enum-size) QML-registered enums need int backing for qmlcachegen AOT
-    enum class ErrorCategory { None, InvalidApiKey, NetworkOffline, RateLimited, GeneralError };
+    enum class ErrorCategory { None, InvalidApiKey, NetworkOffline, RateLimited, BillingError, GeneralError };
     Q_ENUM(ErrorCategory)
 
     explicit AbstractCloudSttClient(QObject* parent = nullptr);

@@ -23,10 +23,14 @@ add_library(qtscribe_core STATIC
     HttpRequestRunner.cpp
     NetworkTlsHelper.h
     NetworkTlsHelper.cpp
+    BaseCloudSttClient.h
+    BaseCloudSttClient.cpp
     GroqSttClient.h
     GroqSttClient.cpp
     GeminiSttClient.h
     GeminiSttClient.cpp
+    MetaMusaSttClient.h
+    MetaMusaSttClient.cpp
     CloudSttRouter.h
     CloudSttRouter.cpp
     WavDecoder.h
